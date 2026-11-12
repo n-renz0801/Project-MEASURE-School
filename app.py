@@ -235,6 +235,16 @@ AIP_TAB = {
     "desc": "School Annual Implementation Plan (AIP) Accomplishment Report",
 }
 
+# Dashboard is a single page like SBM / AIP: it is not part of TABS (the
+# OPCRF parts), so it gets its own nav entry in base.html. Its id keeps the
+# report-signatory footer hidden there (see base.html).
+DASHBOARD_TAB = {
+    "id": "dashboard",
+    "short": "Dashboard",
+    "name": "Dashboard",
+    "desc": "Ratings, responses and budget at a glance",
+}
+
 # Quick lookup by id, e.g. TAB_LOOKUP["eopcrf1"]
 TAB_LOOKUP = {tab["id"]: tab for tab in TABS}
 
@@ -321,6 +331,21 @@ def home():
         tabs=TABS,
         active_tab=None,
         preparer=_get_preparer(),
+        year=_current_year(),
+    )
+
+
+@app.route("/dashboard")
+def dashboard():
+    """Current-year overview: one section each for EOPCRF 1, EOPCRF 2, SBM
+    and AIP. The page is static markup; static/js/dashboard.js fetches the
+    existing /irc/eopcrf1/data, /irc/eopcrf2/data and /sbm/data endpoints
+    (AIP shows placeholder figures for now)."""
+    return render_template(
+        "tabs/dashboard.html",
+        tabs=TABS,
+        active_tab=DASHBOARD_TAB,
+        year=_current_year(),
     )
 
 

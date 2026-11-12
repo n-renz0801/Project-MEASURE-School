@@ -1,0 +1,45 @@
+{% extends "base.html" %} {% block title %}Dashboard - Project-MEASURE-School{%
+endblock %} {% block extra_css %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/dashboard.css') }}"
+/>
+{% endblock %} {% block content %}
+<div
+  class="db"
+  data-year="{{ year }}"
+  data-url-eopcrf1="{{ url_for('view_tab', tab_id='eopcrf1') }}"
+  data-url-eopcrf2="{{ url_for('view_tab', tab_id='eopcrf2') }}"
+  data-url-sbm="{{ url_for('sbm') }}"
+  data-url-aip="{{ url_for('aip') }}"
+>
+  <div class="db-top">
+    <h1>Dashboard</h1>
+    <p>Showing {{ year }} ratings and responses</p>
+  </div>
+
+  <section id="eopcrf1" class="db-sec" data-open="1" aria-label="EOPCRF 1">
+    <p class="db-msg">Loading…</p>
+  </section>
+  <section
+    id="eopcrf2"
+    class="db-sec db-sec--e2"
+    data-open="1"
+    aria-label="EOPCRF 2"
+  ></section>
+  <section
+    id="sbm"
+    class="db-sec db-sec--sbm"
+    data-open="1"
+    aria-label="SBM"
+  ></section>
+  <section
+    id="aip"
+    class="db-sec db-sec--aip"
+    data-open="1"
+    aria-label="AIP"
+  ></section>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
