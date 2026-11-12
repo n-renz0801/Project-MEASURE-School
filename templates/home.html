@@ -79,14 +79,17 @@ endblock %} {% block extra_css %}
       </span>
     </a>
 
-    <!-- Placeholder for a future report -->
-    <div class="hm-card hm-card--ghost" aria-disabled="true">
+    <!-- Dashboard: single page, whole card is the link -->
+    <a href="{{ url_for('dashboard') }}" class="hm-card hm-card--link">
       <i class="ti ti-chart-bar hm-card__icon" aria-hidden="true"></i>
       <h2 class="hm-card__title">Dashboard</h2>
-      <span class="hm-soon">
-        <i class="ti ti-hourglass-high" aria-hidden="true"></i> Coming Soon
+      <p class="hm-card__label">
+        Ratings, responses and budget at a glance for {{ year }}
+      </p>
+      <span class="hm-card__cta">
+        Open <i class="ti ti-arrow-right" aria-hidden="true"></i>
       </span>
-    </div>
+    </a>
   </div>
 </section>
 {% endblock %}
