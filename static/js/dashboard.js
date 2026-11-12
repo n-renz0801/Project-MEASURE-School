@@ -9,6 +9,30 @@
   "use strict";
   const root = document.querySelector(".db");
   if (!root) return;
+
+  /* ── TEMPORARY: design switch (tinted | solid). Delete this block, the
+     .db-design markup in dashboard.html and the .db-design CSS once the
+     client has chosen. The choice is remembered in localStorage. ───────── */
+  (function () {
+    const buttons = root.querySelectorAll(".db-design button");
+    const setDesign = (d) => {
+      root.dataset.design = d;
+      buttons.forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.design === d)),
+      );
+      try {
+        localStorage.setItem("db-design", d);
+      } catch (e) {}
+    };
+    let saved = null;
+    try {
+      saved = localStorage.getItem("db-design");
+    } catch (e) {}
+    setDesign(saved === "solid" ? "solid" : "tinted");
+    buttons.forEach((b) =>
+      b.addEventListener("click", () => setDesign(b.dataset.design)),
+    );
+  })();
   const YEAR = root.dataset.year;
   const URLS = {
     eopcrf1: root.dataset.urlEopcrf1,
@@ -413,10 +437,9 @@
           <span class="db-ico"><i class="ti ${o.icon}" aria-hidden="true"></i></span>
           <span class="db-sec__text"><span class="db-sec__name">${esc(o.title)}</span><span class="db-sec__sub">${esc(o.sub)}</span></span>
         </button></h2>
-        ${o.pills ? `<div class="db-pills" role="group" aria-label="${esc(o.title)} part">${o.pills}</div>` : ""}
         <div class="db-sec__right"><div class="db-val" id="${sec.id}-val"></div>
           <a class="db-open" href="${esc(o.href)}">Open report <i class="ti ti-arrow-right" aria-hidden="true"></i></a>
-          <span class="db-chev" aria-hidden="true"><i class="ti ti-chevron-down"></i></span></div>
+          <button type="button" class="db-chev" aria-expanded="${open}" aria-controls="${sec.id}-body" aria-label="Toggle ${esc(o.title)} section"><i class="ti ti-chevron-down" aria-hidden="true"></i></button></div>
       </div>
       <div class="db-body" id="${sec.id}-body" ${open ? "" : "hidden"}></div>`;
     const btn = sec.querySelector(".db-tog");
@@ -431,6 +454,7 @@
   }
   function setOpen(sec, on) {
     sec.querySelector(".db-tog").setAttribute("aria-expanded", String(on));
+    sec.querySelector(".db-chev").setAttribute("aria-expanded", String(on));
     sec.querySelector(".db-body").hidden = !on;
   }
   const setVal = (el, v, small) =>
@@ -438,17 +462,43 @@
 
   /* ── EOPCRF 1 (Part I-A, I-B, I-C) ───────────────────────────────────── */
   const PARTS = [
-    { k: "a", pill: "I-A", name: "Commitment to Organizational Outcomes" },
-    { k: "b", pill: "I-B", name: "Innovating and Intervening Accomplishments" },
-    { k: "c", pill: "I-C", name: "Organizational Effectiveness" },
+    {
+      k: "a",
+      pill: "I-A",
+      icon: "ti-flag",
+      name: "Commitment to Organizational Outcomes",
+    },
+    {
+      k: "b",
+      pill: "I-B",
+      icon: "ti-bulb",
+      name: "Innovating and Intervening Accomplishments",
+    },
+    {
+      k: "c",
+      pill: "I-C",
+      icon: "ti-building",
+      name: "Organizational Effectiveness",
+    },
   ];
-  function kraStats(kra) {
+  /* Same numbering as the EOPCRF 1 page: the "1.5" at the start of an
+     objective's text, else KRA position in its part + objective position. */
+  function splitObjectiveText(text, fallbackCode) {
+    const m = /^\s*(\d+\.\d+)\.?\s+([\s\S]*)$/.exec(text || "");
+    return m
+      ? { code: m[1], title: m[2] }
+      : { code: fallbackCode, title: text || "" };
+  }
+  /* pos = 0-based position of the KRA within its part (from .map). */
+  function kraStats(kra, pos) {
     const objs = (kra.objectives || [])
-      .map((o, i) => ({
-        letter: String.fromCharCode(65 + i),
-        text: o.text,
-        v: o.average,
-      }))
+      .map((o, i) => {
+        const { code, title } = splitObjectiveText(
+          o.text,
+          `${pos + 1}.${i + 1}`,
+        );
+        return { code, text: title, v: o.average };
+      })
       .filter((o) => o.v != null);
     const cat = (c) =>
       mean((kra.objectives || []).map((o) => o.ratings && o.ratings[c]));
@@ -457,81 +507,108 @@
       t = cat("timeliness");
     return { name: noParen(kra.text), q, e, t, v: mean([q, e, t]), objs };
   }
+  /* Rating bands (same cut-offs as the report). b drives the shade in CSS. */
+  const BANDS = [
+    { b: 5, min: 4.5, label: "Outstanding" },
+    { b: 4, min: 3.5, label: "Very satisfactory" },
+    { b: 3, min: 2.5, label: "Satisfactory" },
+    { b: 2, min: 1.5, label: "Unsatisfactory" },
+    { b: 1, min: -Infinity, label: "Poor" },
+  ];
+  const bandOf = (v) => BANDS.find((x) => v >= x.min);
+  const qetBar = (letter, name, v) =>
+    v == null
+      ? `<div class="db-q db-q--na" title="${name}: not rated"><span class="db-q__l">${letter}</span><span class="db-trk"></span><b>–</b></div>`
+      : `<div class="db-q" data-b="${bandOf(v).b}" title="${name} ${f1(v)} of 5"><span class="db-q__l">${letter}</span><span class="db-trk"><span class="db-q__f" style="width:${Math.max(0, Math.min(100, (v / 5) * 100))}%"></span></span><b>${f1(v)}</b></div>`;
+  const objRow = (kind, o) => {
+    const icon =
+      kind === "lo" ? "arrow-down" : kind === "only" ? "minus" : "arrow-up";
+    const lab =
+      kind === "hi" ? "Highest" : kind === "lo" ? "Lowest" : "Objective";
+    return `<div class="db-obj db-obj--${kind === "lo" ? "lo" : "hi"}"><span class="db-obj__ico"><i class="ti ti-${icon}" aria-hidden="true"></i></span><span class="db-obj__k">${lab}</span><span class="db-obj__t" title="${esc(o.text)}"><b>${esc(o.code)}</b>${esc(o.text)}</span><em>${f1(o.v)}</em></div>`;
+  };
+  const objBlock = (s) => {
+    if (!s.objs.length)
+      return `<div class="db-objs db-objs--none"><p class="db-obj__none">No objectives rated yet</p></div>`;
+    const e = extremes(s.objs);
+    if (e.same)
+      return `<div class="db-objs${s.objs.length === 1 ? "" : " db-objs--none"}">${
+        s.objs.length === 1
+          ? objRow("only", e.hi)
+          : `<p class="db-obj__none">All ${s.objs.length} objectives rated ${f1(e.hi.v)}</p>`
+      }</div>`;
+    return `<div class="db-objs">${objRow("hi", e.hi)}${objRow("lo", e.lo)}</div>`;
+  };
   function renderE1(sec, data) {
     const kras = (data && data.kras) || [];
     const byPart = {};
     PARTS.forEach(
       (p) => (byPart[p.k] = kras.filter((k) => k.part === p.k).map(kraStats)),
     );
+    const ratedOf = (k) => byPart[k].filter((s) => s.v != null);
+    const partAvg = (k) => mean(ratedOf(k).map((s) => s.v));
+    const countText = (k) => {
+      const n = ratedOf(k).length;
+      return n ? `${n} KRA${n === 1 ? "" : "s"}` : "No ratings yet";
+    };
     let cur = "a";
-    const pills = PARTS.map(
-      (p) =>
-        `<button type="button" class="db-pill" data-part="${p.k}" aria-pressed="${p.k === cur}">${p.pill}</button>`,
-    ).join("");
     const { body, val } = shell(sec, {
       title: "EOPCRF 1",
-      sub: "",
+      sub: "Key Result Areas and objectives, Part I",
       icon: "ti-clipboard-check",
       href: URLS.eopcrf1,
-      pills,
     });
-    const subEl = sec.querySelector(".db-sec__sub");
+    body.innerHTML = `<div class="db-parts" role="group" aria-label="EOPCRF 1 part">${PARTS.map(
+      (p) =>
+        `<button type="button" class="db-part" data-part="${p.k}" aria-pressed="${p.k === cur}"><span class="db-part__ico"><i class="ti ${p.icon}" aria-hidden="true"></i></span><span class="db-part__l"><b>Part ${p.pill}</b><span title="${esc(p.name)}">${esc(p.name)}</span></span><span class="db-part__r"><em>${f2(partAvg(p.k))}</em><small>${countText(p.k)}</small></span></button>`,
+    ).join("")}</div>
+      <div class="db-part-body"></div>`;
+    const inner = body.querySelector(".db-part-body");
     function draw() {
       const part = PARTS.find((p) => p.k === cur);
-      const rated = byPart[cur].filter((s) => s.v != null);
-      subEl.textContent = "Part " + part.pill + ": " + part.name;
-      sec
-        .querySelectorAll(".db-pill")
+      const rated = ratedOf(cur);
+      body
+        .querySelectorAll(".db-part")
         .forEach((b) =>
           b.setAttribute("aria-pressed", String(b.dataset.part === cur)),
         );
-      const avg = mean(rated.map((s) => s.v));
-      setVal(val, f2(avg), "Part " + part.pill + " average");
+      setVal(val, f2(partAvg(cur)), "Part " + part.pill + " average");
       if (!rated.length) {
-        body.innerHTML = msg(
+        inner.innerHTML = msg(
           "No ratings yet for Part " + part.pill + ".",
           URLS.eopcrf1,
           "Rate objectives",
         );
         return;
       }
-      const ex = extremes(rated.map((s) => ({ v: s.v, n: s.name })));
-      const withObj = rated.filter((s) => s.objs.length);
-      const details = withObj
-        .map((s) => {
-          const e = extremes(
-            s.objs.map((o) => ({ v: o.v, n: o.letter, t: o.text })),
-          );
-          const line = (lab, x) =>
-            `<b>${lab}</b> Objective ${esc(x.n)} (${f1(x.v)}): ${esc(clip(x.t, 120))}`;
-          return `<div class="db-det__item"><h4>${esc(s.name)}</h4><p>${
-            e.same
-              ? `Objective ${esc(e.hi.n)}${s.objs.length > 1 ? " and others" : ""} all at ${f1(e.hi.v)}`
-              : line("Highest", e.hi) + "<br>" + line("Lowest", e.lo)
-          }</p></div>`;
-        })
-        .join("");
-      body.innerHTML = `
-        <div class="db-grid">
-          <div class="db-col"><h3>Average rating per KRA</h3>
-            ${rated.map((s) => barRow(s.name, s.v, 5, "var(--c)", `Quality ${f1(s.q)}, Efficiency ${f1(s.e)}, Timeliness ${f1(s.t)}`, f1(s.v))).join("")}
-            <p class="db-note">Hover or focus a bar for Q, E and T.</p></div>
-          <div class="db-col"><h3>Highest and lowest KRA</h3>
-            ${
-              ex.same
-                ? kv([["Only rated", ex.hi.n, f1(ex.hi.v)]])
-                : kv([
-                    ["Highest", ex.hi.n, f1(ex.hi.v)],
-                    ["Lowest", ex.lo.n, f1(ex.lo.v)],
-                  ])
-            }</div>
-          <div class="db-col"><h3>Objective range per KRA</h3>
-            ${withObj.map((s) => rangeRow(s.name, Math.min(...s.objs.map((o) => o.v)), Math.max(...s.objs.map((o) => o.v)), 1, 5)).join("")}
-            <p class="db-note">Lowest to highest objective, scale 1 to 5.</p></div>
-        </div>
-        ${details ? `<details class="db-det"><summary>Highest and lowest objective per KRA</summary><div class="db-det__list">${details}</div></details>` : ""}`;
+      /* One row per KRA in the same order as the EOPCRF 1 page. Highest/lowest
+         KRA are marked on their rows (only when the averages differ). */
+      const ex = extremes(rated.map((s, i) => ({ v: s.v, n: i })));
+      const hiIdx = ex && !ex.same ? ex.hi.n : -1;
+      const loIdx = ex && !ex.same ? ex.lo.n : -1;
+      const ranked = rated.map((s, i) => ({ s, i }));
+      const badge = (i) =>
+        i === hiIdx
+          ? `<span class="db-badge db-badge--hi"><i class="ti ti-trophy" aria-hidden="true"></i>Highest KRA</span>`
+          : i === loIdx
+            ? `<span class="db-badge db-badge--lo"><i class="ti ti-trending-down" aria-hidden="true"></i>Lowest KRA</span>`
+            : "";
+      inner.innerHTML = `<div class="db-kras">
+        <div class="db-kras__head" aria-hidden="true"><span>#</span><span>Key Result Area</span><span>Highest and lowest objective</span><span>Quality · Efficiency · Timeliness</span><span>Average</span></div>${ranked
+          .map(({ s, i }, r) => {
+            const band = bandOf(s.v);
+            return `
+        <article class="db-kra${i === hiIdx ? " db-kra--hi" : i === loIdx ? " db-kra--lo" : ""}" aria-label="${esc(s.name)}">
+          <span class="db-rank" title="KRA ${r + 1} of ${ranked.length}">${r + 1}</span>
+          <div class="db-kra__id"><h4>${esc(s.name)}</h4>${badge(i)}</div>
+          ${objBlock(s)}
+          <div class="db-qet" role="group" aria-label="Quality ${f1(s.q)}, Efficiency ${f1(s.e)}, Timeliness ${f1(s.t)}">${qetBar("Q", "Quality", s.q)}${qetBar("E", "Efficiency", s.e)}${qetBar("T", "Timeliness", s.t)}</div>
+          <div class="db-chip" data-b="${band.b}" title="Q.E.T. average"><b>${f2(s.v)}</b><span>${band.label}</span></div>
+        </article>`;
+          })
+          .join("")}</div>`;
     }
-    sec.querySelectorAll(".db-pill").forEach((b) =>
+    body.querySelectorAll(".db-part").forEach((b) =>
       b.addEventListener("click", () => {
         cur = b.dataset.part;
         draw();

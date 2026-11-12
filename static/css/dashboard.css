@@ -2,7 +2,7 @@
    DASHBOARD
    One layout for every section: header (title, headline value, link to the
    report) then three columns -- main chart, highest/lowest, range plot.
-   Colors: OPCRF navy, SBM teal, AIP violet (matches the Home cards).
+   Colors: EOPCRF 1 deep navy, EOPCRF 2 blue, SBM teal, AIP violet.
    Type scale: page title 1.6rem > section title 1.15rem > headline 1.5rem
    (numerals only) > column heading 0.82rem > body 0.8rem.
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -13,18 +13,45 @@
 
 .db-top {
   display: flex;
-  align-items: baseline;
   justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
+  gap: 16px;
   margin-bottom: 0.9rem;
+  padding: 14px 16px;
+  background: var(--white);
+  border: 1px solid #e2e6ec;
+  border-bottom: 3px solid var(--gold, #fcd116);
+  border-radius: 10px;
+}
+.db-top__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.db-top__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: var(--navy-deep, #001550);
+  color: #fff;
+  font-size: 1.4rem;
+  border-radius: 8px;
 }
 .db-top h1 {
-  font-size: 1.6rem;
-  color: var(--navy-deep);
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   line-height: 1.2;
+  color: var(--navy-deep, #001550);
 }
 .db-top p {
+  margin: 2px 0 0;
   font-size: 0.85rem;
   color: var(--text-light);
 }
@@ -34,10 +61,14 @@
   --c: var(--navy);
   --c-soft: #e8eefc;
   background: var(--white);
-  border: 1px solid color-mix(in srgb, var(--c) 28%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
   margin-bottom: 1.1rem;
+}
+.db-sec--e1 {
+  --c: #1e3a8a;
+  --c-soft: #e9eef9;
 }
 .db-sec--e2 {
   --c: #3b5bdb;
@@ -63,11 +94,6 @@
   flex-wrap: wrap;
   gap: 0.6rem 1rem;
   padding: 0.95rem 1.5rem;
-  background: color-mix(in srgb, var(--c) 8%, var(--white));
-  border-bottom: 1px solid color-mix(in srgb, var(--c) 22%, var(--white));
-}
-.db-sec:has(.db-body[hidden]) .db-sec__head {
-  border-bottom-color: transparent;
 }
 .db-body {
   padding: 1.25rem 1.5rem 1.5rem;
@@ -104,7 +130,6 @@
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  background: var(--c);
   color: #fff;
   font-size: 1.4rem;
   flex-shrink: 0;
@@ -118,53 +143,32 @@
 .db-sec__name {
   font-size: 1.2rem;
   font-weight: 600;
-  color: var(--navy-deep);
   line-height: 1.2;
 }
 .db-sec__sub {
   font-size: 0.8rem;
   font-weight: 400;
-  color: var(--text-light);
 }
 .db-chev {
   display: inline-flex;
-  padding: 4px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
   font-size: 1.1rem;
-  color: var(--c);
   cursor: pointer;
-  border-radius: 6px;
+  transition: filter 0.15s ease;
+}
+.db-chev i {
   transition: transform 0.2s ease;
 }
-.db-sec:has(.db-tog[aria-expanded="true"]) .db-chev {
+.db-chev[aria-expanded="true"] i {
   transform: rotate(180deg);
 }
-
-.db-pills {
-  display: flex;
-  gap: 6px;
-}
-.db-pill {
-  padding: 4px 14px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--c) 40%, var(--white));
-  background: var(--white);
-  color: var(--c);
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.db-pill:hover {
-  background: var(--c-soft);
-}
-.db-pill[aria-pressed="true"] {
-  background: var(--c);
-  border-color: var(--c);
-  color: #fff;
-}
-.db-pill:focus-visible,
+.db-chev:focus-visible,
 .db-open:focus-visible,
 .db-det summary:focus-visible {
   outline: 2px solid var(--c);
@@ -185,31 +189,129 @@
   font-size: 1.6rem;
   font-weight: 600;
   line-height: 1;
-  color: var(--c);
   font-variant-numeric: tabular-nums;
 }
 .db-val small {
   margin: 0;
   font-size: 0.76rem;
   font-weight: 400;
-  color: var(--text-light);
 }
 .db-open {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 13px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--c) 40%, var(--white));
-  background: var(--white);
-  font-size: 0.8rem;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--c);
   text-decoration: none;
-  transition: background 0.15s ease;
+  transition: filter 0.15s ease;
 }
-.db-open:hover {
-  background: var(--c-soft);
+.db-open:hover,
+.db-chev:hover {
+  filter: brightness(0.94);
+}
+
+/* ── Part tabs (EOPCRF 1: I-A / I-B / I-C) ───────────────────────────────── */
+.db-parts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.db-part {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 0.9rem;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--white);
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.db-part:hover {
+  background: color-mix(in srgb, var(--c) 5%, var(--white));
+  border-color: color-mix(in srgb, var(--c) 40%, var(--border));
+}
+.db-part__ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--c) 10%, var(--white));
+  color: var(--c);
+  font-size: 1.1rem;
+}
+.db-part__l {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.db-part__l b {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.db-part__l span {
+  overflow: hidden;
+  font-size: 0.72rem;
+  color: var(--text-light);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-part__r {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.db-part__r em {
+  font-style: normal;
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--c);
+  font-variant-numeric: tabular-nums;
+}
+.db-part__r small {
+  font-size: 0.68rem;
+  color: var(--text-light);
+}
+.db-part[aria-pressed="true"] {
+  background: var(--c);
+  border-color: var(--c);
+  color: #fff;
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--c) 70%, transparent);
+}
+.db-part[aria-pressed="true"] .db-part__ico {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.db-part[aria-pressed="true"] .db-part__l span,
+.db-part[aria-pressed="true"] .db-part__r small {
+  color: rgba(255, 255, 255, 0.92);
+}
+.db-part[aria-pressed="true"] .db-part__r em {
+  color: #fff;
+}
+.db-part:focus-visible {
+  outline: 2px solid var(--c);
+  outline-offset: 2px;
 }
 
 /* ── Columns ─────────────────────────────────────────────────────────────── */
@@ -453,6 +555,9 @@
   }
 }
 @media (max-width: 760px) {
+  .db-parts {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .db-grid,
   .db-grid--2,
   .db-det__list {
@@ -577,5 +682,479 @@
   .db-row[data-tip]::after {
     animation: none;
     transition: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION DESIGN THEMES  (two options for the client to choose from)
+   Selected by <div class="db" data-design="tinted|solid"> (see the temporary
+   switch at the top of dashboard.js). After the client decides: delete the
+   other theme block, delete the switch block below, then find/replace
+   '.db[data-design="..."] ' with '' in the kept block.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── THEME: TINTED (Option 1) ────────────────────────────────────────────── */
+.db[data-design="tinted"] .db-sec {
+  border-color: color-mix(in srgb, var(--c) 28%, var(--border));
+}
+.db[data-design="tinted"] .db-sec__head {
+  background: color-mix(in srgb, var(--c) 8%, var(--white));
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 22%, var(--white));
+}
+.db[data-design="tinted"] .db-sec:has(.db-body[hidden]) .db-sec__head {
+  border-bottom-color: transparent;
+}
+.db[data-design="tinted"] .db-ico {
+  background: var(--c);
+}
+.db[data-design="tinted"] .db-sec__name {
+  color: var(--navy-deep);
+}
+.db[data-design="tinted"] .db-sec__sub {
+  color: var(--text-light);
+}
+.db[data-design="tinted"] .db-chev {
+  background: var(--white);
+  border-color: color-mix(in srgb, var(--c) 45%, var(--white));
+  color: var(--c);
+}
+.db[data-design="tinted"] .db-open {
+  background: var(--c);
+  border-color: var(--c);
+  color: #fff;
+}
+.db[data-design="tinted"] .db-val {
+  color: var(--c);
+}
+.db[data-design="tinted"] .db-val small {
+  color: var(--text-light);
+}
+
+/* ── THEME: SOLID (Option 3) ─────────────────────────────────────────────── */
+.db[data-design="solid"] .db-sec {
+  border-color: color-mix(in srgb, var(--c) 45%, var(--border));
+}
+.db[data-design="solid"] .db-sec__head {
+  padding-block: 1.1rem;
+  background: var(--c);
+  color: #fff;
+}
+.db[data-design="solid"] .db-ico {
+  background: rgba(255, 255, 255, 0.18);
+}
+.db[data-design="solid"] .db-tog:focus-visible,
+.db[data-design="solid"] .db-chev:focus-visible,
+.db[data-design="solid"] .db-open:focus-visible {
+  outline-color: #fff;
+}
+.db[data-design="solid"] .db-sec__name {
+  color: #fff;
+}
+.db[data-design="solid"] .db-sec__sub {
+  color: rgba(255, 255, 255, 0.88);
+}
+.db[data-design="solid"] .db-chev {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+.db[data-design="solid"] .db-open {
+  background: #fff;
+  border-color: #fff;
+  color: var(--c);
+}
+.db[data-design="solid"] .db-val {
+  color: #fff;
+}
+.db[data-design="solid"] .db-val small {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* ── TEMPORARY: design switch (delete with the switch in dashboard.js) ───── */
+.db-design {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+.db-design__opts {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--white);
+}
+.db-design button {
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.db-design button[aria-pressed="true"] {
+  background: var(--navy);
+  color: #fff;
+}
+.db-design button:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+/* ── Subtle fade when switching theme (temporary, goes with the switch) ──── */
+.db-sec,
+.db-sec__head,
+.db-ico,
+.db-sec__name,
+.db-sec__sub,
+.db-val,
+.db-val small,
+.db-chev,
+.db-open,
+.db-design button {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    padding 0.3s ease,
+    filter 0.15s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-sec,
+  .db-sec__head,
+  .db-ico,
+  .db-sec__name,
+  .db-sec__sub,
+  .db-val,
+  .db-val small,
+  .db-chev,
+  .db-open,
+  .db-design button {
+    transition: none;
+  }
+}
+
+/* ── EOPCRF 1 body: ranked list of KRAs ─────────────────────────────────────
+   One row per KRA, in report order: no. | name + badge | highest/lowest objective
+   (stacked) | Q/E/T bars | average chip. Everything is a tint of the section
+   color (--c); gold and coral mark the highest and lowest KRA only.
+   data-b = rating band: 5 Outstanding (4.5+), 4 Very satisfactory (3.5+),
+   3 Satisfactory (2.5+), 2 Unsatisfactory (1.5+), 1 Poor. */
+.db-kras {
+  --hi: #e8cb3f;
+  --hi-bg: #fff4c2;
+  --hi-ink: #5e4b00;
+  --lo: #e0574b;
+  --lo-bg: #fdeceb;
+  --lo-line: #f3b8b3;
+  --lo-ink: #a1261b;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--c) 18%, var(--border));
+  border-radius: 14px;
+  background: var(--white);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--c) 8%, transparent);
+}
+.db-kras__head,
+.db-kra {
+  display: grid;
+  grid-template-columns:
+    32px minmax(0, 1fr) minmax(0, 1.25fr)
+    250px 112px;
+  gap: 1.25rem;
+  align-items: center;
+}
+.db-kras__head {
+  padding: 0.6rem 1.25rem 0.6rem 1.5rem;
+  background: color-mix(in srgb, var(--c) 5%, var(--white));
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 14%, var(--white));
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+.db-kras__head span:last-child {
+  text-align: center;
+}
+.db-kra {
+  padding: 0.95rem 1.25rem 0.95rem 1.5rem;
+  box-shadow: inset 4px 0 0 transparent;
+}
+.db-kra + .db-kra {
+  border-top: 1px solid var(--border);
+}
+.db-kra--hi {
+  background: linear-gradient(90deg, #fffbe6, var(--white) 45%);
+  box-shadow: inset 4px 0 0 var(--hi);
+}
+.db-kra--lo {
+  background: linear-gradient(90deg, #fff3f2, var(--white) 45%);
+  box-shadow: inset 4px 0 0 var(--lo);
+}
+.db-rank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 10%, var(--white));
+  color: var(--c);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.db-kra__id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.db-kra__id h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--navy-deep);
+}
+.db-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.db-badge--hi {
+  background: var(--hi-bg);
+  border-color: var(--hi);
+  color: var(--hi-ink);
+}
+.db-badge--lo {
+  background: var(--lo-bg);
+  border-color: var(--lo-line);
+  color: var(--lo-ink);
+}
+.db-badge i {
+  font-size: 0.8rem;
+}
+
+/* highest / lowest objective, stacked */
+.db-objs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: var(--off-white);
+}
+.db-objs--none {
+  align-items: center;
+}
+.db-obj {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.76rem;
+}
+.db-obj__ico {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+.db-obj--hi .db-obj__ico {
+  color: var(--c);
+}
+.db-obj--lo .db-obj__ico {
+  color: var(--text-light);
+}
+.db-obj__k {
+  width: 3.3rem;
+  flex-shrink: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.db-obj--hi .db-obj__k {
+  color: var(--c);
+}
+.db-obj--lo .db-obj__k {
+  color: var(--text-light);
+}
+.db-obj__t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-obj__t b {
+  margin-right: 0.5em;
+  font-weight: 700;
+  color: var(--c);
+  font-variant-numeric: tabular-nums;
+}
+.db-obj em {
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--navy-deep);
+  font-variant-numeric: tabular-nums;
+}
+.db-obj__none {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-light);
+}
+
+/* Q / E / T bars */
+.db-qet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.db-q {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 28px;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.76rem;
+}
+.db-q__l {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--c);
+}
+.db-q .db-trk {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+.db-q__f {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--c) var(--m0), var(--white)),
+    color-mix(in srgb, var(--c) var(--m), var(--white))
+  );
+  transform-origin: left;
+  animation: db-grow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.db-q b {
+  font-weight: 600;
+  text-align: right;
+  color: var(--navy-deep);
+  font-variant-numeric: tabular-nums;
+}
+.db-q--na .db-q__l,
+.db-q--na b {
+  color: var(--text-light);
+}
+.db-q[data-b="5"] {
+  --m: 100%;
+  --m0: 75%;
+}
+.db-q[data-b="4"] {
+  --m: 85%;
+  --m0: 60%;
+}
+.db-q[data-b="3"] {
+  --m: 65%;
+  --m0: 40%;
+}
+.db-q[data-b="2"] {
+  --m: 45%;
+  --m0: 25%;
+}
+.db-q[data-b="1"] {
+  --m: 30%;
+  --m0: 15%;
+}
+
+/* average chip */
+.db-chip {
+  padding: 0.5rem 0.4rem;
+  border-radius: 12px;
+  text-align: center;
+  color: var(--navy-deep);
+}
+.db-chip b {
+  display: block;
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.db-chip span {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.64rem;
+  font-weight: 500;
+  line-height: 1.15;
+}
+.db-chip[data-b="5"] {
+  background: var(--c);
+  color: #fff;
+}
+.db-chip[data-b="4"] {
+  background: color-mix(in srgb, var(--c) 80%, var(--white));
+  color: #fff;
+}
+.db-chip[data-b="3"] {
+  background: color-mix(in srgb, var(--c) 40%, var(--white));
+}
+.db-chip[data-b="2"] {
+  background: color-mix(in srgb, var(--c) 26%, var(--white));
+}
+.db-chip[data-b="1"] {
+  background: color-mix(in srgb, var(--c) 14%, var(--white));
+}
+
+@media (max-width: 1100px) {
+  .db-kras__head {
+    display: none;
+  }
+  .db-kra {
+    grid-template-columns: 32px minmax(0, 1fr) 112px;
+    row-gap: 0.8rem;
+  }
+  .db-rank {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .db-kra__id {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .db-chip {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .db-objs {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+  .db-qet {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-q__f {
+    animation: none;
   }
 }

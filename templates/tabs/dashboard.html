@@ -7,6 +7,7 @@ endblock %} {% block extra_css %}
 {% endblock %} {% block content %}
 <div
   class="db"
+  data-design="tinted"
   data-year="{{ year }}"
   data-url-eopcrf1="{{ url_for('view_tab', tab_id='eopcrf1') }}"
   data-url-eopcrf2="{{ url_for('view_tab', tab_id='eopcrf2') }}"
@@ -14,11 +15,35 @@ endblock %} {% block extra_css %}
   data-url-aip="{{ url_for('aip') }}"
 >
   <div class="db-top">
-    <h1>Dashboard</h1>
-    <p>Showing {{ year }} ratings and responses</p>
+    <div class="db-top__main">
+      <span class="db-top__badge"
+        ><i class="ti ti-layout-dashboard" aria-hidden="true"></i
+      ></span>
+      <div>
+        <h1>Dashboard</h1>
+        <p>Showing {{ year }} ratings and responses</p>
+      </div>
+    </div>
+    <!-- TEMPORARY design switch: remove after the client chooses -->
+    <div class="db-design" role="group" aria-label="Choose a design">
+      <span>Design</span>
+      <span class="db-design__opts">
+        <button type="button" data-design="tinted" aria-pressed="true">
+          Tinted
+        </button>
+        <button type="button" data-design="solid" aria-pressed="false">
+          Solid
+        </button>
+      </span>
+    </div>
   </div>
 
-  <section id="eopcrf1" class="db-sec" data-open="1" aria-label="EOPCRF 1">
+  <section
+    id="eopcrf1"
+    class="db-sec db-sec--e1"
+    data-open="1"
+    aria-label="EOPCRF 1"
+  >
     <p class="db-msg">Loading…</p>
   </section>
   <section
