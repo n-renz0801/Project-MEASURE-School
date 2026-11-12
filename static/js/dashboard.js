@@ -447,15 +447,67 @@
       setOpen(sec, btn.getAttribute("aria-expanded") !== "true");
     btn.addEventListener("click", toggle);
     sec.querySelector(".db-chev").addEventListener("click", toggle);
+    /* Clicking anywhere else on the header toggles too (the buttons and the
+       Open report link keep their own behavior). */
+    sec.querySelector(".db-sec__head").addEventListener("click", (e) => {
+      if (e.target.closest("button, a")) return;
+      toggle();
+    });
     return {
       body: sec.querySelector(".db-body"),
       val: sec.querySelector(".db-val"),
     };
   }
+  /* Smooth, subtle expand/collapse: height + padding + a light fade. A quick
+     second click reverses from wherever the animation had got to. Falls back
+     to an instant toggle with reduced motion. */
   function setOpen(sec, on) {
+    const body = sec.querySelector(".db-body");
     sec.querySelector(".db-tog").setAttribute("aria-expanded", String(on));
     sec.querySelector(".db-chev").setAttribute("aria-expanded", String(on));
-    sec.querySelector(".db-body").hidden = !on;
+    if (
+      !body.animate ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      body.hidden = !on;
+      return;
+    }
+    if (on === !body.hidden && !body._anim) return;
+    const h0 = body.hidden ? 0 : body.getBoundingClientRect().height;
+    const o0 = body.hidden ? 0 : parseFloat(getComputedStyle(body).opacity);
+    if (body._anim) body._anim.cancel();
+    body.hidden = false;
+    const cs = getComputedStyle(body);
+    const full = body.offsetHeight;
+    const pt = parseFloat(cs.paddingTop);
+    const pb = parseFloat(cs.paddingBottom);
+    const shape = (h, o) => {
+      const f = full ? h / full : 0;
+      return {
+        height: h + "px",
+        opacity: o,
+        paddingTop: pt * f + "px",
+        paddingBottom: pb * f + "px",
+      };
+    };
+    body.style.overflow = "hidden";
+    const anim = body.animate(
+      on
+        ? [shape(h0, o0), shape(full, 1)]
+        : [shape(h0 || full, h0 ? o0 : 1), shape(0, 0)],
+      {
+        duration: on ? 280 : 220,
+        easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+        fill: "forwards",
+      },
+    );
+    body._anim = anim;
+    anim.onfinish = () => {
+      body._anim = null;
+      if (!on) body.hidden = true;
+      anim.cancel();
+      body.style.overflow = "";
+    };
   }
   const setVal = (el, v, small) =>
     (el.innerHTML = `${v}<small>${esc(small)}</small>`);
@@ -564,7 +616,7 @@
     ).join("")}</div>
       <div class="db-part-body"></div>`;
     const inner = body.querySelector(".db-part-body");
-    function draw() {
+    function render() {
       const part = PARTS.find((p) => p.k === cur);
       const rated = ratedOf(cur);
       body
@@ -607,6 +659,42 @@
         </article>`;
           })
           .join("")}</div>`;
+    }
+    /* Switching parts: glide the list's height from the old size to the new
+       one (with a light fade) instead of jumping. The first draw, a collapsed
+       section and reduced motion skip it. */
+    let first = true;
+    function draw() {
+      const animate =
+        !first &&
+        !body.hidden &&
+        !body._anim &&
+        !!inner.animate &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const h0 = animate ? inner.offsetHeight : 0;
+      if (inner._anim) {
+        inner._anim.cancel();
+        inner._anim = null;
+        inner.style.overflow = "";
+      }
+      render();
+      first = false;
+      if (!animate) return;
+      const h1 = inner.offsetHeight;
+      if (Math.abs(h1 - h0) < 2) return;
+      inner.style.overflow = "hidden";
+      const a = inner.animate(
+        [
+          { height: h0 + "px", opacity: 0.5 },
+          { height: h1 + "px", opacity: 1 },
+        ],
+        { duration: 260, easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
+      );
+      inner._anim = a;
+      a.onfinish = () => {
+        inner._anim = null;
+        inner.style.overflow = "";
+      };
     }
     body.querySelectorAll(".db-part").forEach((b) =>
       b.addEventListener("click", () => {

@@ -94,8 +94,10 @@
   flex-wrap: wrap;
   gap: 0.6rem 1rem;
   padding: 0.95rem 1.5rem;
+  cursor: pointer;
 }
 .db-body {
+  box-sizing: border-box;
   padding: 1.25rem 1.5rem 1.5rem;
 }
 .db-body[hidden] {
@@ -163,7 +165,7 @@
   transition: filter 0.15s ease;
 }
 .db-chev i {
-  transition: transform 0.2s ease;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .db-chev[aria-expanded="true"] i {
   transform: rotate(180deg);
@@ -679,6 +681,7 @@
 @media (prefers-reduced-motion: reduce) {
   .db-meter span,
   .db-chev,
+  .db-chev i,
   .db-row[data-tip]::after {
     animation: none;
     transition: none;
