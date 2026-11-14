@@ -866,6 +866,215 @@
           : v <= 3.25
             ? "Frequently"
             : "Always";
+  /* ── SBM ───────────────────────────────────────────────────────────────
+     Same structure as the EOPCRF 1/2 bodies. Top: overall degree + totals
+     (left) and a radar of the principle averages (right). Below: one ranked
+     row per principle in report order (Curriculum first):
+     no. | name + badge | highest/lowest indicator | indicators per degree |
+     average chip. Highest/lowest principle are marked on their rows only
+     (when the averages differ). Ties read "3 indicators tied: #9, #10, #12".
+     Degree scale: Not yet 1, Rarely 2, Frequently 3, Always 4. Averages use
+     answered indicators only; the overall figure is the mean of the
+     principle averages. */
+  const SBM_CUTS = [
+    1.75, 2.5, 3.25,
+  ]; /* upper edge of Not yet, Rarely, Frequently */
+  const sbmDeg = (v) =>
+    v <= 1.75 ? DEG[0] : v <= 2.5 ? DEG[1] : v <= 3.25 ? DEG[2] : DEG[3];
+  const sbmSwatch = (i) => `var(--d${i + 1})`;
+
+  function sbmLine(kind, hit, v) {
+    const d = DEG.find((x) => x.score === v);
+    const icon =
+      kind === "lo" ? "arrow-down" : kind === "only" ? "minus" : "arrow-up";
+    const lab =
+      kind === "hi" ? "Highest" : kind === "lo" ? "Lowest" : "Indicator";
+    const nums = hit.map((x) => "#" + x.n).join(", ");
+    const text =
+      hit.length > 1
+        ? `<b>${hit.length} indicators</b>tied: ${nums}`
+        : `<b>#${hit[0].n}</b>${esc(hit[0].t)}`;
+    const tip = hit.map((x) => `#${x.n} ${x.t}`).join("  |  ");
+    return `<div class="db-obj db-obj--${kind === "lo" ? "lo" : "hi"}"><span class="db-obj__ico"><i class="ti ti-${icon}" aria-hidden="true"></i></span><span class="db-obj__k">${lab}</span><span class="db-obj__t" title="${esc(tip)}">${text}</span><em class="db-sbm-deg ${d.cls}">${d.label}</em></div>`;
+  }
+  function sbmIndicatorBlock(p) {
+    if (!p.items.length)
+      return `<div class="db-objs db-objs--none"><p class="db-obj__none">No indicators answered yet</p></div>`;
+    const hiV = Math.max(...p.items.map((x) => x.v));
+    const loV = Math.min(...p.items.map((x) => x.v));
+    if (hiV === loV) {
+      const d = DEG.find((x) => x.score === hiV);
+      return p.items.length === 1
+        ? `<div class="db-objs">${sbmLine("only", p.items, hiV)}</div>`
+        : `<div class="db-objs db-objs--none"><p class="db-obj__none">All ${p.items.length} answered indicators are ${esc(d.label)}</p></div>`;
+    }
+    return `<div class="db-objs">${sbmLine(
+      "hi",
+      p.items.filter((x) => x.v === hiV),
+      hiV,
+    )}${sbmLine(
+      "lo",
+      p.items.filter((x) => x.v === loV),
+      loV,
+    )}</div>`;
+  }
+  /* Radar of the principle averages on the 1 to 4 scale (centre = 1). A
+     principle with no answers has no point; the shape joins the rest. */
+  function sbmRadar(pr) {
+    const cx = 170,
+      cy = 135,
+      R = 92,
+      n = pr.length;
+    const ang = (i) => (((i * 360) / n - 90) * Math.PI) / 180;
+    const pt = (i, v) => {
+      const r = ((v - 1) / 3) * R;
+      return [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))];
+    };
+    const str = (a) => a.map((x) => x.toFixed(1)).join(",");
+    const rings = [1, 2, 3, 4]
+      .map(
+        (v) =>
+          `<polygon class="db-rad__ring" points="${pr.map((_, i) => str(pt(i, v))).join(" ")}"/>`,
+      )
+      .join("");
+    const axes = pr
+      .map((_, i) => {
+        const [x, y] = pt(i, 4);
+        return `<line class="db-rad__ring" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
+      })
+      .join("");
+    const pts = pr
+      .map((p, i) => (p.v == null ? null : pt(i, p.v)))
+      .filter(Boolean);
+    const shape =
+      pts.length >= 3
+        ? `<polygon class="db-rad__shape" points="${pts.map(str).join(" ")}"/>`
+        : pts.length === 2
+          ? `<polyline class="db-rad__shape" points="${pts.map(str).join(" ")}"/>`
+          : "";
+    const dots = pts
+      .map(
+        (q) =>
+          `<circle class="db-rad__dot" cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4"/>`,
+      )
+      .join("");
+    const ticks = [2, 3, 4]
+      .map(
+        (v) =>
+          `<text class="db-rad__tick" x="${cx + 3}" y="${(cy - ((v - 1) / 3) * R + 9).toFixed(1)}">${v}</text>`,
+      )
+      .join("");
+    const labels = pr
+      .map((p, i) => {
+        const [x, y] = pt(i, 4.55);
+        const c = Math.cos(ang(i));
+        const a = Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
+        return `<text class="db-rad__name" x="${x.toFixed(1)}" y="${(y - 2).toFixed(1)}" text-anchor="${a}">${esc(p.short)}</text><text class="db-rad__val" x="${x.toFixed(1)}" y="${(y + 10).toFixed(1)}" text-anchor="${a}">${f2(p.v)}</text>`;
+      })
+      .join("");
+    const label = pr.map((p) => `${p.short} ${f2(p.v)}`).join(", ");
+    return `<svg viewBox="0 0 340 270" role="img" aria-label="Average score per principle: ${esc(label)}">${rings}${axes}${shape}${dots}${ticks}${labels}</svg>`;
+  }
+  /* SBM "Indicators per degree": one tile per indicator around a center axis.
+     Not yet + Rarely grow to the left, Frequently + Always to the right, so the
+     low side and the high side read at a glance. Every group gets a bracket and
+     a label placed exactly on its tiles (Rarely and Frequently above, Not yet and
+     Always below, so two labels never collide). Tile width is shared by all
+     principles (set from the longest side) so row lengths stay comparable.
+     Drawn in pixels, so it is redrawn whenever the cell is resized or shown. */
+  let sbmPr = [],
+    sbmLo = 0,
+    sbmHi = 0;
+  function sbmPlot(el) {
+    const p = sbmPr[+el.dataset.i],
+      W = el.clientWidth;
+    if (!p || !W) return;
+    if (el.querySelector(".is-on"))
+      root.dispatchEvent(new Event("db-tip-hide"));
+    if (!p.answered) {
+      el.innerHTML = `<span class="db-pl__na">No indicators answered yet</span>`;
+      return;
+    }
+    // The axis is not fixed at the middle: it sits where the longest low side
+    // (sbmLo tiles) and the longest high side (sbmHi tiles) both fit with the
+    // widest possible tiles. It is shared by every row so the axes line up.
+    // Tiles grow to fill the cell (up to 64px, edge padding kept) and shrink, with the gap dropping to 1px,
+    // as it gets tighter.
+    const EDGE = 6, // padding kept at both ends of the cell
+      PAD = 4,
+      MIN_L = 52, // room kept for the widest left label
+      MIN_R = 68; // room kept for the widest right label
+    const nL = sbmLo,
+      nR = sbmHi,
+      gaps = (g) => g * (Math.max(nL - 1, 0) + Math.max(nR - 1, 0));
+    let GAP = 2,
+      tw0 = (W - 2 * EDGE - 2 * PAD - gaps(GAP)) / (nL + nR);
+    if (tw0 < 3) {
+      GAP = 1;
+      tw0 = (W - 2 * EDGE - 2 * PAD - gaps(GAP)) / (nL + nR);
+    }
+    const ax0 = EDGE + nL * tw0 + GAP * Math.max(nL - 1, 0) + PAD;
+    const ax = Math.max(EDGE + MIN_L, Math.min(W - EDGE - MIN_R, ax0));
+    const twL = nL ? (ax - EDGE - PAD - GAP * (nL - 1)) / nL : Infinity,
+      twR = nR ? (W - ax - EDGE - PAD - GAP * (nR - 1)) / nR : Infinity;
+    const tw = Math.max(1, Math.min(64, twL, twR)); // same width for every tile in every row
+    const step = tw + GAP;
+    // [degree index, side, inner?] inner groups touch the axis
+    const groups = [
+      [1, "L", true],
+      [0, "L", false],
+      [2, "R", true],
+      [3, "R", false],
+    ];
+    const nOf = (i) => p.counts[DEG[i].k];
+    let h = `<span class="db-pl__ax" style="left:${ax}px"></span>`;
+    const labels = [];
+    groups.forEach(([i, side, inner]) => {
+      const n = nOf(i);
+      if (!n) return;
+      const s = PAD + (inner ? 0 : step * nOf(side === "L" ? 1 : 2));
+      const w = step * n - GAP;
+      const left = side === "L" ? ax - s - w : ax + s;
+      const tiles = p.items
+        .filter((it) => it.v === DEG[i].score)
+        .map(
+          (it) =>
+            `<i class="${DEG[i].cls}" style="width:${tw.toFixed(2)}px" data-n="${it.n}" data-d="${DEG[i].label}" data-t="${esc(it.t)}" tabindex="0" role="button" aria-label="Indicator ${it.n}, ${DEG[i].label}"></i>`,
+        )
+        .join("");
+      h += `<div class="db-pl__g" style="left:${left}px;width:${w}px;gap:${GAP}px">${tiles}</div>`;
+      h += `<div class="db-pl__br db-pl__br--${inner ? "up" : "dn"}" style="left:${left}px;width:${w}px"></div>`;
+      labels.push({ i, n, side, inner, cx: left + w / 2 });
+    });
+    h += labels
+      .map(
+        (l, j) =>
+          `<span class="db-pl__lb db-pl__lb--${l.inner ? "up" : "dn"}" data-j="${j}">${DEG[l.i].label}<b>${l.n}</b></span>`,
+      )
+      .join("");
+    el.innerHTML = h;
+    // center each label on its group, kept on its own side of the axis
+    el.querySelectorAll(".db-pl__lb").forEach((lb) => {
+      const l = labels[+lb.dataset.j],
+        lw = lb.offsetWidth;
+      const lo = l.side === "L" ? EDGE : ax + PAD;
+      const hi = l.side === "L" ? ax - PAD - lw : W - lw - EDGE;
+      lb.style.left = Math.max(lo, Math.min(hi, l.cx - lw / 2)) + "px";
+    });
+  }
+  function sbmPlots(root) {
+    const cells = root.querySelectorAll(".db-sbm-dist");
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver((es) =>
+        es.forEach((e) => sbmPlot(e.target)),
+      );
+      cells.forEach((c) => ro.observe(c)); // also fires when a closed section opens
+    } else {
+      cells.forEach(sbmPlot);
+      window.addEventListener("resize", () => cells.forEach(sbmPlot));
+    }
+  }
+
   function renderSbm(sec, data) {
     const resp = (data && data.responses) || {};
     const pr = STRUCT.SBM.map((d) => {
@@ -877,7 +1086,7 @@
         const def = DEG.find((x) => x.k === deg);
         if (def) {
           counts[deg]++;
-          items.push({ v: def.score, n: it.n, t: it.text, lab: def.label });
+          items.push({ v: def.score, n: it.n, t: it.text });
         }
       });
       return {
@@ -900,7 +1109,7 @@
     });
     setVal(
       val,
-      overall == null ? "–" : levelOf(overall),
+      overall == null ? "–" : sbmDeg(overall).label,
       overall == null ? "" : f2(overall) + " of 4",
     );
     if (!rated.length) {
@@ -911,55 +1120,71 @@
       );
       return;
     }
-    const ex = extremes(rated.map((p) => ({ v: p.v, n: p.name })));
     const tot = DEG.map((d) => ({
       ...d,
       n: pr.reduce((s, p) => s + p.counts[d.k], 0),
     }));
     const answered = tot.reduce((s, d) => s + d.n, 0),
       all = pr.reduce((s, p) => s + p.total, 0);
-    const details = rated
-      .map((p) => {
-        const e = extremes(p.items);
-        const line = (lab, x) =>
-          `<b>${lab}</b> #${x.n} (${esc(x.lab)}): ${esc(clip(x.t, 120))}`;
-        return `<div class="db-det__item"><h4>${esc(p.name)}</h4><p>${e.same ? `All answered indicators are ${esc(e.hi.lab)}` : line("Highest", e.hi) + "<br>" + line("Lowest", e.lo)}</p></div>`;
+    const ex = extremes(rated.map((p, i) => ({ v: p.v, n: p })));
+    const hiP = ex && !ex.same ? ex.hi.n : null;
+    const loP = ex && !ex.same ? ex.lo.n : null;
+    const overallDeg = sbmDeg(overall);
+    const favPct = Math.round(((tot[2].n + tot[3].n) / answered) * 100);
+    const hiPrinc = rated.filter((p) => p.v > SBM_CUTS[1]).length;
+    const pin = Math.max(0, Math.min(100, ((overall - 1) / 3) * 100));
+    const badge = (p) =>
+      p === hiP
+        ? `<span class="db-badge db-badge--hi"><i class="ti ti-trophy" aria-hidden="true"></i>Highest principle</span>`
+        : p === loP
+          ? `<span class="db-badge db-badge--lo"><i class="ti ti-trending-down" aria-hidden="true"></i>Lowest principle</span>`
+          : "";
+    sbmPr = pr;
+    sbmLo = Math.max(0, ...pr.map((p) => p.counts.not_yet + p.counts.rarely));
+    sbmHi = Math.max(
+      0,
+      ...pr.map((p) => p.counts.frequently + p.counts.always),
+    );
+    const rows = pr
+      .map((p, i) => {
+        const cls = p === hiP ? " db-kra--hi" : p === loP ? " db-kra--lo" : "";
+        const d = p.v == null ? null : sbmDeg(p.v);
+        return `
+        <article class="db-kra${cls}${p.v == null ? " db-kra--empty" : ""}" aria-label="${esc(p.name)}">
+          <span class="db-rank" title="Principle ${i + 1} of ${pr.length}">${i + 1}</span>
+          <div class="db-kra__id"><h4>${esc(p.name)}</h4><small class="db-sbm-sub">${p.answered} of ${p.total} answered</small>${badge(p)}</div>
+          ${sbmIndicatorBlock(p)}
+          <div class="db-sbm-dist" data-i="${i}" role="img" aria-label="${esc(p.name)}: ${DEG.map((x) => x.label + " " + p.counts[x.k]).join(", ")}"></div>
+          <div class="db-chip ${d ? d.cls : "db-sbm-na"}" title="Average of the answered indicators"><b>${f2(p.v)}</b><span>${d ? d.label : "No answers"}</span></div>
+        </article>`;
       })
       .join("");
     body.innerHTML = `
-      <div class="db-grid">
-        <div class="db-col"><h3>Average score per principle</h3>
-          ${rated.map((p) => barRow(p.short, p.v, 4, "var(--c)", p.name, f1(p.v))).join("")}
-          <div class="db-sp"></div>
-          ${
-            ex.same
-              ? kv([["Only rated", ex.hi.n, f1(ex.hi.v)]])
-              : kv([
-                  ["Highest", ex.hi.n, f1(ex.hi.v)],
-                  ["Lowest", ex.lo.n, f1(ex.lo.v)],
-                ])
-          }</div>
-        <div class="db-col"><h3>Responses per principle</h3>
-          ${pr
-            .map(
-              (
-                p,
-              ) => `<div class="db-row" data-tip="${esc(p.answered + " of " + p.total + " answered")}"><span title="${esc(p.name)}">${esc(p.short)}</span>
-            <span class="db-stack">${DEG.map((d) => (p.counts[d.k] ? `<span class="${d.cls}" style="flex:${p.counts[d.k]}">${p.counts[d.k]}</span>` : "")).join("")}</span>
-            <span>${p.answered}/${p.total}</span></div>`,
-            )
-            .join("")}
-          ${key(DEG.map((d) => [`var(--${d.cls.slice(3)})`, d.label]))}</div>
-        <div class="db-col"><h3>Total across all principles</h3>
-          <div class="db-donut">${donut(
-            tot.map((d) => ({ v: d.n, color: `var(--${d.cls.slice(3)})` })),
-            answered + "/" + all,
-            "answered",
-            "Total responses by degree of manifestation",
-          )}
-            <dl class="db-kv db-kv--tight">${tot.map((d) => `<div><dt><i class="db-sw" style="background:var(--${d.cls.slice(3)})"></i>${d.label}</dt><dd>${d.n}</dd></div>`).join("")}</dl></div></div>
+      <div class="db-sbm-band">
+        <div class="db-sbm-card db-sbm-card--hl db-sbm-sum">
+          <h3>Overall degree of manifestation<small>${answered} of ${all} answered</small></h3>
+          <div class="db-sbm-top">
+            <div class="db-sbm-big"><b>${esc(overallDeg.label)}</b><span>${f2(overall)} of 4.00 · mean of ${rated.length} principle${rated.length === 1 ? "" : "s"}</span></div>
+            <div class="db-sbm-stats">
+              <div class="db-sbm-stat"><b>${favPct}%</b><span>Frequently or Always<br>manifested</span></div>
+              <div class="db-sbm-stat"><b>${hiPrinc}<small> of ${rated.length}</small></b><span>principles at Frequently<br>or higher</span></div>
+            </div>
+          </div>
+          <div class="db-sbm-scale" role="img" aria-label="Overall ${f2(overall)} of 4, ${esc(overallDeg.label)}. Boundaries at ${SBM_CUTS.map(f2).join(", ")}">
+            <div class="db-sbm-scale__wrap" style="--p:${pin}%">
+              <span class="db-sbm-scale__bubble">${f2(overall)}</span>
+              <div class="db-sbm-scale__bar">${DEG.map((d, i) => `<span class="${d.cls}${d === overallDeg ? " is-on" : ""}">${d.label}</span>`).join("")}<u></u></div></div>
+            <div class="db-sbm-scale__ticks" aria-hidden="true">${[1, ...SBM_CUTS, 4].map((v, i) => `<span style="left:${i * 25}%">${f2(v)}</span>`).join("")}</div></div>
+          <h3 class="db-sbm-sum__h">Total across all principles</h3>
+          <div class="db-sbm-seg" role="img" aria-label="${tot.map((d) => d.label + " " + d.n).join(", ")}">${tot.map((d) => (d.n ? `<span class="${d.cls}" style="flex:${d.n}">${d.n}</span>` : "")).join("")}</div>
+          <div class="db-sbm-cols">${tot.map((d, i) => `<span class="db-sbm-col" title="${d.label}: ${d.n} of ${answered}"><i style="background:${sbmSwatch(i)}"></i>${d.label}<em>${answered ? Math.round((d.n / answered) * 100) : 0}%</em></span>`).join("")}</div>
+        </div>
+        <div class="db-sbm-card db-sbm-radar"><h3>Average score per principle</h3>${sbmRadar(pr)}</div>
       </div>
-      <details class="db-det"><summary>Highest and lowest indicator per principle</summary><div class="db-det__list">${details}</div></details>`;
+      <div class="db-kras db-kras--sbm">
+        <div class="db-kras__head" aria-hidden="true"><span>#</span><span>Principle</span><span>Highest and lowest indicator</span><span>Indicators per degree<small class="db-kras__note"> · 1 tile = 1 indicator</small></span><span>Average</span></div>${rows}
+      </div>`;
+    sbmPlots(body);
   }
 
   /* ── AIP (PLACEHOLDER DATA) ──────────────────────────────────────────── */
@@ -1014,7 +1239,7 @@
   }
 
   /* Dot plot popup: click a dot (or press Enter/Space on a focused one) to show
-     "Indicator n" and its text; click it again, click elsewhere or press Esc to close. */
+     "Indicator n" and its text (EOPCRF 2 dots and the SBM tiles); click it again, click elsewhere or press Esc to close. */
   (function () {
     const tip = document.createElement("div");
     tip.className = "db-tip";
@@ -1022,6 +1247,7 @@
     tip.hidden = true;
     root.appendChild(tip);
     let on = null;
+    root.addEventListener("db-tip-hide", () => hide());
     const hide = () => {
       tip.hidden = true;
       if (on) on.classList.remove("is-on");
@@ -1033,7 +1259,11 @@
       on = dot;
       dot.classList.add("is-on");
       const head = document.createElement("b");
-      head.textContent = "Indicator " + dot.dataset.n;
+      head.textContent =
+        "Indicator " +
+        dot.dataset.n +
+        (dot.dataset.d ? " · " + dot.dataset.d : "");
+      tip.classList.toggle("db-tip--sbm", !!dot.closest(".db-sbm-dist"));
       const text = document.createElement("span");
       text.textContent = dot.dataset.t || "";
       tip.replaceChildren(head, text);
@@ -1051,7 +1281,9 @@
       tip.style.top = r.top - 9 + "px";
       tip.style.setProperty("--ax", cx - left + w / 2 + "px");
     };
-    const isDot = (el) => el.closest && el.closest(".db-dots circle[data-n]");
+    const isDot = (el) =>
+      el.closest &&
+      el.closest(".db-dots circle[data-n], .db-sbm-dist i[data-n]");
     root.addEventListener("click", (e) => {
       const d = isDot(e.target);
       d ? show(d) : hide();

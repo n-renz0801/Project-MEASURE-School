@@ -643,7 +643,7 @@
 }
 .db-d3 {
   background: var(--d3);
-  color: #fff;
+  color: #001a17; /* 4.9:1 (white would be 3.7:1) */
 }
 .db-d4 {
   background: var(--d4);
@@ -865,7 +865,7 @@
   display: grid;
   grid-template-columns:
     32px minmax(0, 1fr) minmax(0, 1.25fr)
-    250px 112px;
+    250px 132px;
   gap: 1.25rem;
   align-items: center;
 }
@@ -1132,7 +1132,7 @@
     display: none;
   }
   .db-kra {
-    grid-template-columns: 32px minmax(0, 1fr) 112px;
+    grid-template-columns: 32px minmax(0, 1fr) 132px;
     row-gap: 0.8rem;
   }
   .db-rank {
@@ -1167,12 +1167,6 @@
    only adds: a wider average column (full rating labels), part dividers
    (.db-cgrp) and the indicators-per-rating chart (.db-dots). All shades of the
    section color (--c = #3b5bdb); gold/coral mark highest/lowest competency. */
-.db-kras--e2 .db-kras__head,
-.db-kras--e2 .db-kra {
-  grid-template-columns:
-    32px minmax(0, 1fr) minmax(0, 1.3fr)
-    226px 132px;
-}
 .db-cgrp {
   display: flex;
   align-items: center;
@@ -1359,4 +1353,469 @@
 }
 .db-tip[hidden] {
   display: none;
+}
+
+/* ── SBM body: overall + totals + radar, then a ranked list of principles ──
+   Reuses the EOPCRF list (.db-kras, .db-kra, .db-objs, .db-chip, badges).
+   Colors: the SBM palette only (--c, --c-soft, --d1 to --d4 on .db-sec--sbm);
+   gold/coral mark the highest/lowest principle. d1 Not yet, d2 Rarely,
+   d3 Frequently, d4 Always. */
+.db-sbm-band {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+.db-sbm-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--c) 18%, var(--border));
+  border-radius: 14px;
+  background: var(--white);
+}
+.db-sbm-card--hl {
+  background: linear-gradient(135deg, var(--c-soft), var(--white) 80%);
+}
+.db-sbm-card h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+.db-sbm-big {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.db-sbm-big b {
+  font-size: 2.1rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--c);
+}
+.db-sbm-big span {
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+.db-sbm-scale {
+  margin-top: 1rem;
+}
+/* scale: names inside the bands, in the fixed degree colors. */
+.db-sbm-scale__wrap {
+  position: relative;
+  padding-top: 2.1rem;
+}
+.db-sbm-scale__bubble {
+  position: absolute;
+  top: 0;
+  left: clamp(24px, var(--p), calc(100% - 24px));
+  padding: 2px 9px;
+  border-radius: 7px;
+  background: var(--navy-deep);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+}
+.db-sbm-scale__bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: var(--navy-deep);
+}
+.db-sbm-scale__bar {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  height: 34px;
+}
+.db-sbm-scale__bar span {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* the active band keeps its own color; it is marked by a ring and a bold label */
+.db-sbm-scale__bar span.is-on {
+  font-weight: 700;
+  box-shadow:
+    0 0 0 2px var(--white),
+    0 0 0 4px var(--navy-deep);
+}
+.db-sbm-scale__bar u {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: var(--p);
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--navy-deep);
+  box-shadow: 0 0 0 2px var(--white);
+}
+.db-sbm-scale__ticks {
+  position: relative;
+  height: 1.1rem;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--navy-deep);
+  font-variant-numeric: tabular-nums;
+}
+.db-sbm-scale__ticks span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+.db-sbm-scale__ticks span:first-child {
+  transform: none;
+}
+.db-sbm-scale__ticks span:last-child {
+  transform: translateX(-100%);
+}
+.db-sbm-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.6rem;
+  align-items: center;
+}
+.db-sbm-top .db-sbm-big {
+  display: block;
+}
+.db-sbm-top .db-sbm-big span {
+  display: block;
+  margin-top: 0.3rem;
+}
+.db-sbm-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-left: 1px solid color-mix(in srgb, var(--c) 20%, var(--border));
+}
+.db-sbm-stat {
+  padding-left: 1.1rem;
+}
+.db-sbm-stat + .db-sbm-stat {
+  margin-left: 1.1rem;
+  border-left: 1px solid color-mix(in srgb, var(--c) 14%, var(--border));
+}
+.db-sbm-stat b {
+  display: block;
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--c);
+  font-variant-numeric: tabular-nums;
+}
+.db-sbm-stat b small {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-light);
+}
+.db-sbm-stat span {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.74rem;
+  line-height: 1.3;
+  color: var(--text-light);
+}
+.db-sbm-radar svg {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  margin: auto;
+}
+.db-rad__ring {
+  fill: none;
+  stroke: var(--border);
+}
+.db-rad__shape {
+  fill: var(--c);
+  fill-opacity: 0.22;
+  stroke: var(--c);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.db-rad__dot {
+  fill: var(--c);
+  stroke: var(--white);
+  stroke-width: 2;
+}
+.db-rad__tick {
+  font-size: 8px;
+  fill: var(--text-light);
+}
+.db-rad__name {
+  font-family: inherit;
+  font-size: 10.5px;
+  fill: var(--text);
+}
+.db-rad__val {
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: var(--navy-deep);
+}
+
+/* rows */
+.db-sbm-sub {
+  font-size: 0.72rem;
+  color: var(--text-light);
+}
+.db-kra--empty .db-rank,
+.db-kra--empty h4 {
+  opacity: 0.6;
+}
+.db-sbm-deg {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem !important;
+  font-weight: 600;
+}
+/* Indicators per degree: tile plot (drawn by sbmPlot in dashboard.js).
+   Tile colors come from .db-d1 to .db-d4; Not yet gets its edge from the rule
+   near the end of this section. */
+.db-sbm-dist {
+  position: relative;
+  height: 68px;
+}
+.db-pl__ax {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  width: 1.5px;
+  height: 32px;
+  background: var(--text-light);
+  transform: translateX(-0.75px);
+}
+.db-pl__g {
+  position: absolute;
+  top: 22px;
+  height: 24px;
+  display: flex;
+}
+.db-pl__g i {
+  position: relative;
+  display: block;
+  flex: none;
+  height: 24px;
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.15s ease;
+}
+/* click hint, like the EOPCRF 2 dots: the tile lifts a little and a soft ring
+   pulses out of it; the open tile keeps a dark outline */
+.db-pl__g i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.db-pl__g i:hover:not(.is-on) {
+  z-index: 1;
+  transform: translateY(-3px);
+}
+.db-pl__g i:hover:not(.is-on)::after {
+  animation: db-tile-halo 1.1s ease-out infinite;
+}
+@keyframes db-tile-halo {
+  from {
+    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.55);
+  }
+  to {
+    box-shadow: 0 0 0 7px rgba(15, 118, 110, 0);
+  }
+}
+.db-pl__g i.is-on,
+.db-pl__g i:focus-visible {
+  z-index: 1;
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 2px var(--white),
+    0 0 0 4px var(--navy-deep);
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-pl__g i {
+    transition: none;
+  }
+  .db-pl__g i:hover:not(.is-on)::after {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.35);
+  }
+}
+.db-tip--sbm {
+  background: #0b5a53;
+}
+.db-tip--sbm::after {
+  border-top-color: #0b5a53;
+}
+.db-pl__br {
+  position: absolute;
+  height: 4px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--text-light) 60%, transparent);
+}
+.db-pl__br--up {
+  top: 16px;
+  border-bottom: 0;
+}
+.db-pl__br--dn {
+  top: 48px;
+  border-top: 0;
+}
+.db-pl__lb {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  line-height: 14px;
+  color: var(--text-light);
+}
+.db-pl__lb--up {
+  top: 1px;
+}
+.db-pl__lb--dn {
+  top: 53px;
+}
+.db-pl__lb b {
+  margin-left: 4px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  font-variant-numeric: tabular-nums;
+}
+.db-pl__na {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.74rem;
+  color: var(--text-light);
+}
+.db-kras__note {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.db-chip.db-d3 {
+  color: #001a17;
+}
+.db-chip.db-d4 {
+  color: #fff;
+}
+.db-chip.db-sbm-na {
+  background: var(--off-white);
+  color: var(--text-light);
+}
+.db-kras--sbm .db-chip span {
+  font-size: 0.68rem;
+}
+@media (max-width: 1100px) {
+  .db-sbm-dist {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+}
+@media (max-width: 980px) {
+  .db-sbm-band {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* merged summary card: overall on top, totals below (proportional bar + four columns) */
+.db-sbm-card h3 small {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.db-sbm-sum__h {
+  margin-top: auto !important;
+  padding-top: 0.9rem;
+}
+.db-sbm-seg {
+  display: flex;
+  gap: 2px;
+  height: 30px;
+  margin: 0.2rem 0 0.65rem;
+  overflow: hidden;
+  border-radius: 9px;
+}
+.db-sbm-seg span {
+  display: grid;
+  place-items: center;
+  min-width: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.db-sbm-cols {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+}
+.db-sbm-col {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-light);
+  white-space: nowrap;
+}
+.db-sbm-col i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.db-sbm-col em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--navy-deep);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .db-sbm-top {
+    grid-template-columns: 1fr;
+  }
+  .db-sbm-stats {
+    border-left: 0;
+  }
+  .db-sbm-stat:first-child {
+    padding-left: 0;
+  }
+}
+
+/* Fixed degree colors everywhere in the SBM body: Not yet d1, Rarely d2,
+   Frequently d3, Always d4 (with one label color each, see .db-d1 to .db-d4).
+   Not yet is the palest, so wherever it is drawn it gets a thin edge to keep it
+   from fading into the white card. */
+.db-sec--sbm .db-d1,
+.db-sec--sbm [style*="var(--d1)"] {
+  box-shadow: inset 0 0 0 1px rgba(11, 90, 83, 0.28);
+}
+.db-sec--sbm .db-sbm-scale__bar .db-d1.is-on {
+  box-shadow:
+    inset 0 0 0 1px rgba(11, 90, 83, 0.28),
+    0 0 0 2px var(--white),
+    0 0 0 4px var(--navy-deep);
 }
