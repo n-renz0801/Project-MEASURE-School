@@ -1,8 +1,7 @@
 /* Dashboard: one dedicated section each for EOPCRF 1, EOPCRF 2, SBM and AIP.
    Reads the same endpoints the report pages use (no new backend route):
      /irc/eopcrf1/data, /irc/eopcrf2/data, /sbm/data  (current year only)
-   AIP is PLACEHOLDER data until its data-gathering form is fixed (see
-   AIP_SAMPLE below; swap loadAip() to read /aip/data when ready).
+   AIP reads /aip/data (not per year).
    SBM / EOPCRF 2 form wording (indicators, competencies) is generated from
    sbm.js and eopcrf2.js so highest/lowest indicators can be named. */
 (function () {
@@ -1288,55 +1287,180 @@
     countUp(sec);
   }
 
-  /* ── AIP (PLACEHOLDER DATA) ──────────────────────────────────────────── */
-  // TODO: replace with real figures once the AIP form collects budget and
-  // gain/gap in a structured way. Same shape: total, gain, gap, allotted, utilized.
-  const AIP_SAMPLE = {
-    total: 12,
-    gain: 9,
-    gap: 3,
-    allotted: 2000000,
-    utilized: 1560000,
-  };
-  function renderAip(sec) {
-    const a = AIP_SAMPLE;
-    const gp = (a.gain / a.total) * 100,
-      pp = (a.gap / a.total) * 100,
-      up = (a.utilized / a.allotted) * 100;
+  /* ── AIP ─────────────────────────────────────────────────────────────────
+     Reads /aip/data. Programs/projects: total, with gain, with gap (the
+     Gain | Gap choice on each project; projects with no choice yet are
+     counted in the total only and not listed). Budget: total allotted = sum
+     of the target finance amounts, total utilized = sum of the accomplishment
+     finance amounts (an amount not entered counts as 0).
+     Hover (or keyboard focus) on an arc or on its row highlights both and
+     shows that figure in the donut's centre. Nothing is clickable. */
+  const pesoFull = (n) =>
+    "₱" +
+    n.toLocaleString("en-PH", {
+      minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+      maximumFractionDigits: 2,
+    });
+  /* compact, for the donut centre: ₱2M, ₱1.56M, ₱440K */
+  const pesoK = (n) =>
+    "₱" +
+    new Intl.NumberFormat("en-PH", {
+      notation: "compact",
+      maximumFractionDigits: 2,
+    }).format(n);
+  const pct = (part, whole) =>
+    whole > 0 ? Math.round((part / whole) * 100) : 0;
+  /* Donut ring: a pale track, then one arc per segment (a small gap between
+     arcs only when there is more than one). The track and each arc may carry
+     a data-seg index for the hover link with its row. */
+  function aipRing(o) {
+    const R = 50,
+      C = 2 * Math.PI * R;
+    const total = o.segs.reduce((t, x) => t + x.of, 0) || 1;
+    const live = o.segs.filter((x) => x.v > 0);
+    let off = 0;
+    const arcs = live
+      .map((x) => {
+        const len = (x.v / total) * C;
+        const dash = live.length > 1 ? Math.max(len - 2, 0.5) : len;
+        const el = `<circle class="db-aip-arc db-aip-seg" data-seg="${x.seg}" tabindex="0" role="img" aria-label="${esc(x.aria)}" cx="64" cy="64" r="${R}" fill="none" stroke-width="18" style="stroke:${x.color}" stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${-off}" transform="rotate(-90 64 64)"/>`;
+        off += len;
+        return el;
+      })
+      .join("");
+    const t = o.track;
+    const trackEl = `<circle class="db-aip-track${t.seg != null ? " db-aip-seg" : ""}"${t.seg != null ? ` data-seg="${t.seg}" tabindex="0" role="img" aria-label="${esc(t.aria)}"` : ""} cx="64" cy="64" r="${R}" fill="none" stroke-width="18" style="stroke:${t.color}"/>`;
+    return `<svg viewBox="0 0 128 128" role="group" aria-label="${esc(o.label)}">${trackEl}${arcs}
+      <text x="64" y="68" text-anchor="middle" class="db-aip-big">${esc(o.big)}</text>
+      <text x="64" y="82" text-anchor="middle" class="db-aip-sm">${esc(o.small)}</text></svg>`;
+  }
+  const aipRow = (seg, n, label, swatch, chip, deep) =>
+    `<div class="db-aip-row" data-seg="${seg}" tabindex="0"><div><span class="db-aip-n${deep ? " db-aip-n--deep" : ""}">${n}</span>
+      <span class="db-aip-l"><i style="background:${swatch}"></i>${esc(label)}</span></div>
+      ${chip == null ? "" : `<span class="db-aip-chip">${chip}%</span>`}</div>`;
+  /* hover / focus link between an arc and its row; the centre text follows.
+     centers[seg] = [big, small]; def = the resting centre text. */
+  function aipHover(card, def, centers) {
+    const svg = card.querySelector("svg");
+    const big = svg.querySelector(".db-aip-big"),
+      sm = svg.querySelector(".db-aip-sm");
+    const show = (i) => {
+      svg.classList.toggle("is-dim", i != null);
+      card
+        .querySelectorAll("[data-seg]")
+        .forEach((el) => el.classList.toggle("on", +el.dataset.seg === i));
+      const c = i == null ? def : centers[i];
+      big.textContent = c[0];
+      sm.textContent = c[1];
+      big.classList.toggle("is-sm", c[0].length > 5);
+    };
+    card.querySelectorAll("[data-seg]").forEach((el) => {
+      const i = +el.dataset.seg;
+      el.addEventListener("mouseenter", () => show(i));
+      el.addEventListener("focus", () => show(i));
+      el.addEventListener("mouseleave", () => show(null));
+      el.addEventListener("blur", () => show(null));
+    });
+  }
+  function renderAip(sec, data) {
     const { body, val } = shell(sec, {
       title: "AIP",
       sub: "Programs, projects and budget",
       icon: "ti-calendar-stats",
       href: URLS.aip,
     });
-    setVal(val, Math.round(up) + "%", "of budget utilized");
+    const list = (data && data.projects) || [];
+    if (!list.length) {
+      setVal(val, "–", "no programs/projects yet");
+      body.innerHTML = msg(
+        data ? "No programs or projects yet." : "The AIP could not be loaded.",
+        URLS.aip,
+        "Open the AIP report",
+      );
+      return;
+    }
+    const total = list.length;
+    const gain = list.filter((p) => p.gainGapType === "gain").length;
+    const gap = list.filter((p) => p.gainGapType === "gap").length;
+    const sum = (k) => list.reduce((t, p) => t + (Number(p[k]) || 0), 0);
+    const allotted = sum("targetFinance"),
+      utilized = sum("accomplishmentFinance");
+    const up = pct(utilized, allotted);
+    setVal(val, up + "%", "of budget utilized");
+    const cnt = (n) => `<data data-to="${n}">${n}</data>`;
     body.innerHTML = `
-      <div class="db-grid db-grid--2">
-        <div class="db-col"><h3>Programs and projects</h3>
-          <div class="db-donut">${donut(
-            [
-              { v: a.gain, color: "var(--c)" },
-              { v: a.gap, color: "var(--c-soft2)" },
+      <div class="db-aip">
+        <div class="db-aip-card db-aip-card--hl" id="aip-card-prog">
+          <div class="db-aip-chart">${aipRing({
+            track: { color: "var(--c-soft)" },
+            segs: [
+              {
+                v: gain,
+                of: total,
+                color: "var(--c)",
+                seg: 0,
+                aria: `${gain} with gain`,
+              },
+              {
+                v: gap,
+                of: total,
+                color: "var(--c-soft2)",
+                seg: 1,
+                aria: `${gap} with gap`,
+              },
             ],
-            String(a.total),
-            "total",
-            "Programs and projects with gain or gap",
-          )}
-            <dl class="db-kv db-kv--tight">
-              <div><dt><i class="db-sw" style="background:var(--c)"></i>With gain</dt><dd>${a.gain}<em>${Math.round(gp)}%</em></dd></div>
-              <div><dt><i class="db-sw" style="background:var(--c-soft2)"></i>With gap</dt><dd>${a.gap}<em>${Math.round(pp)}%</em></dd></div></dl></div></div>
-        <div class="db-col"><h3>Budget</h3>
-          <div class="db-meter" role="img" aria-label="${Math.round(up)}% of the allotted budget utilized"><span style="width:${up}%"></span></div>
-          ${kv([
-            ["Total allotted", peso(a.allotted), null],
-            ["Total utilized", peso(a.utilized), Math.round(up) + "%"],
-            [
-              "Remaining",
-              peso(a.allotted - a.utilized),
-              Math.round(100 - up) + "%",
+            big: String(total),
+            small: "programs/projects",
+            label: `${gain} of ${total} programs and projects with gain, ${gap} with gap`,
+          })}</div>
+          <div class="db-aip-rows"><h3>Programs and projects</h3>
+            ${aipRow(0, cnt(gain), "With gain", "var(--c)", pct(gain, total))}
+            ${aipRow(1, cnt(gap), "With gap", "var(--c-soft2)", pct(gap, total))}
+          </div>
+        </div>
+        <div class="db-aip-card" id="aip-card-budget">
+          <div class="db-aip-chart">${aipRing({
+            track: {
+              color: "var(--c-soft2)",
+              seg: 0,
+              aria: `${pesoFull(allotted)} allotted`,
+            },
+            segs: [
+              {
+                v: utilized,
+                of: allotted,
+                color: "var(--c)",
+                seg: 1,
+                aria: `${pesoFull(utilized)} utilized`,
+              },
             ],
-          ])}</div>
+            big: up + "%",
+            small: "utilized",
+            label: `${up}% of the allotted budget utilized`,
+          })}</div>
+          <div class="db-aip-rows"><h3>Budget</h3>
+            ${aipRow(0, pesoFull(allotted), "Total allotted", "var(--c-soft2)", null, true)}
+            ${aipRow(1, pesoFull(utilized), "Total utilized", "var(--c)", null)}
+          </div>
+        </div>
       </div>`;
+    aipHover(
+      body.querySelector("#aip-card-prog"),
+      [String(total), "programs/projects"],
+      [
+        [String(gain), `with gain · ${pct(gain, total)}%`],
+        [String(gap), `with gap · ${pct(gap, total)}%`],
+      ],
+    );
+    aipHover(
+      body.querySelector("#aip-card-budget"),
+      [up + "%", "utilized"],
+      [
+        [pesoK(allotted), "allotted"],
+        [pesoK(utilized), "utilized"],
+      ],
+    );
+    countUp(sec);
   }
 
   /* Dot plot popup: click a dot (or press Enter/Space on a focused one) to show
@@ -1406,10 +1530,11 @@
     getJson(`/irc/eopcrf1/data?year=${YEAR}`),
     getJson(`/irc/eopcrf2/data?year=${YEAR}`),
     getJson(`/sbm/data?year=${YEAR}`),
-  ]).then(([e1, e2, sbm]) => {
+    getJson("/aip/data"),
+  ]).then(([e1, e2, sbm, aip]) => {
     renderE1(sec("eopcrf1"), e1);
     renderE2(sec("eopcrf2"), e2);
     renderSbm(sec("sbm"), sbm);
-    renderAip(sec("aip"));
+    renderAip(sec("aip"), aip);
   });
 })();

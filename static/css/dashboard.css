@@ -86,6 +86,7 @@
   --c: #6d28d9;
   --c-soft: #f1ebfc;
   --c-soft2: #cdb8f2;
+  --c-deep: #4c1d95;
 }
 
 .db-sec__head {
@@ -2030,5 +2031,176 @@
 @media (prefers-reduced-motion: reduce) {
   .db-kras > .db-kra {
     animation: none;
+  }
+}
+
+/* ── AIP body: one donut per card, figures beside it ────────────────────────
+   Programs/projects (gain vs gap) and budget (utilized of allotted). Only
+   the AIP violet family: --c, --c-soft, --c-soft2, --c-deep. The centre of
+   each donut carries the total / utilization, so the rows never repeat it. */
+.db-aip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.db-aip-card {
+  display: flex;
+  align-items: stretch;
+  gap: 1.6rem;
+  padding: 1.1rem 1.35rem 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--c) 18%, var(--border));
+  border-radius: 14px;
+  background: var(--white);
+}
+.db-aip-card--hl {
+  background: linear-gradient(135deg, var(--c-soft), var(--white) 75%);
+}
+.db-aip-chart {
+  flex: 0 0 46%;
+  align-self: center;
+}
+.db-aip-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.db-aip-chart text {
+  font-family: inherit;
+}
+.db-aip-big {
+  font-size: 26px;
+  font-weight: 600;
+  fill: var(--c);
+}
+.db-aip-sm {
+  font-size: 8.5px;
+  fill: var(--text-light);
+}
+.db-aip-seg {
+  outline: none;
+  transition:
+    stroke-width 0.18s ease,
+    opacity 0.18s ease;
+}
+.db-aip-seg.on,
+.db-aip-seg:focus-visible {
+  stroke-width: 23;
+}
+.db-aip-seg:focus-visible {
+  stroke: var(--c-deep) !important;
+}
+.db-aip-chart svg.is-dim .db-aip-seg:not(.on) {
+  opacity: 0.3;
+}
+.db-aip-big.is-sm {
+  font-size: 19px;
+}
+.db-aip-arc {
+  animation: db-aip-draw 1s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+@keyframes db-aip-draw {
+  from {
+    stroke-dasharray: 0 400;
+  }
+}
+.db-aip-rows {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.db-aip-rows h3 {
+  margin: 0 0 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+.db-aip-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin: 0 -0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-top: 1px solid color-mix(in srgb, var(--c) 14%, var(--border));
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+.db-aip-row.on {
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+}
+.db-aip-row:focus-visible {
+  outline: 2px solid var(--c);
+  outline-offset: -2px;
+}
+.db-aip-rows h3 + .db-aip-row {
+  border-top: 0;
+}
+.db-aip-row > div {
+  min-width: 0;
+}
+.db-aip-n {
+  display: block;
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--c);
+  font-variant-numeric: tabular-nums;
+}
+.db-aip-n--deep {
+  color: var(--c-deep);
+}
+.db-aip-l {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+.db-aip-l i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.db-aip-chip {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--c-soft);
+  color: var(--c);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 900px) {
+  .db-aip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .db-aip-card {
+    flex-direction: column;
+  }
+  .db-aip-chart {
+    flex: none;
+    width: 200px;
+    align-self: center;
+  }
+  .db-aip-row {
+    padding-block: 0.7rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-aip-arc {
+    animation: none;
+  }
+  .db-aip-seg,
+  .db-aip-row {
+    transition: none;
   }
 }
