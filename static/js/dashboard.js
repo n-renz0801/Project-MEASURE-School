@@ -966,7 +966,7 @@
   /* Radar of the principle averages on the 1 to 4 scale (centre = 1). A
      principle with no answers has no point; the shape joins the rest. */
   function sbmRadar(pr) {
-    const cx = 170,
+    const cx = 200,
       cy = 135,
       R = 92,
       n = pr.length;
@@ -976,10 +976,13 @@
       return [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))];
     };
     const str = (a) => a.map((x) => x.toFixed(1)).join(",");
-    const rings = [1, 2, 3, 4]
+    /* Rings sit on the degree cut-offs (1.75, 2.5, 3.25, 4), which fall at
+       25/50/75/100% of the radius, so each band between rings is one degree.
+       Drawn outer to inner; alternate bands get a soft neutral fill. */
+    const rings = [4, ...SBM_CUTS.slice().reverse()]
       .map(
-        (v) =>
-          `<polygon class="db-rad__ring" points="${pr.map((_, i) => str(pt(i, v))).join(" ")}"/>`,
+        (v, z) =>
+          `<polygon class="db-rad__ring db-rad__band${z % 2 ? "" : " db-rad__band--tint"}${z === 0 ? " db-rad__ring--edge" : ""}" points="${pr.map((_, k) => str(pt(k, v))).join(" ")}"/>`,
       )
       .join("");
     const axes = pr
@@ -997,28 +1000,56 @@
         : pts.length === 2
           ? `<polyline class="db-rad__shape" points="${pts.map(str).join(" ")}"/>`
           : "";
-    const dots = pts
+    const dots = pr
+      .map((p, i) => (p.v == null ? null : { p, q: pt(i, p.v) }))
+      .filter(Boolean)
       .map(
-        (q, i) =>
-          `<circle class="db-rad__dot" style="--d:${i * 60}ms" cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4"/>`,
+        ({ p, q }, i) =>
+          `<circle class="db-rad__dot" style="--d:${i * 60}ms;fill:var(--d${DEG.indexOf(sbmDeg(p.v)) + 1})" cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="5.5"><title>${esc(p.short)} ${f2(p.v)}</title></circle>`,
       )
       .join("");
-    const ticks = [2, 3, 4]
-      .map(
-        (v) =>
-          `<text class="db-rad__tick" x="${cx + 3}" y="${(cy - ((v - 1) / 3) * R + 9).toFixed(1)}">${v}</text>`,
-      )
-      .join("");
+    /* Ring ticks (numbers only): the cut-off values sit on their rings,
+       stacked along the emptiest gap between two spokes. Only gaps that are
+       not near-horizontal qualify, so the stacked numbers never overlap. The
+       gap chosen is the one where the shape's edge passes farthest from the
+       tick positions. */
+    const ringV = [...SBM_CUTS, 4];
+    const ringR = ringV.map((v) => ((v - 1) / 3) * R);
+    let best = null;
+    for (let g = 0; g < n; g++) {
+      const th = ang(g) + Math.PI / n;
+      if (Math.abs(Math.sin(th)) < 0.7) continue;
+      const h = (g + 1) % n;
+      const a1 = pt(g, pr[g].v == null ? 1 : pr[g].v);
+      const a2 = pt(h, pr[h].v == null ? 1 : pr[h].v);
+      const rm = Math.hypot((a1[0] + a2[0]) / 2 - cx, (a1[1] + a2[1]) / 2 - cy);
+      const room = Math.min(...ringR.map((b) => Math.abs(rm - b)));
+      if (!best || room > best.room) best = { th, room };
+    }
+    const ticks = best
+      ? ringV
+          .map(
+            (v, k) =>
+              `<text class="db-rad__tick" x="${(cx + ringR[k] * Math.cos(best.th)).toFixed(1)}" y="${(cy + ringR[k] * Math.sin(best.th) + 3.5).toFixed(1)}" text-anchor="middle">${f2(v)}</text>`,
+          )
+          .join("")
+      : "";
     const labels = pr
       .map((p, i) => {
         const [x, y] = pt(i, 4.55);
         const c = Math.cos(ang(i));
         const a = Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
-        return `<text class="db-rad__name" x="${x.toFixed(1)}" y="${(y - 2).toFixed(1)}" text-anchor="${a}">${esc(p.short)}</text><text class="db-rad__val" x="${x.toFixed(1)}" y="${(y + 10).toFixed(1)}" text-anchor="${a}">${f2(p.v)}</text>`;
+        return `<text class="db-rad__name" x="${x.toFixed(1)}" y="${(y - 2).toFixed(1)}" text-anchor="${a}">${esc(p.short)}</text><text class="db-rad__val" x="${x.toFixed(1)}" y="${(y + 11).toFixed(1)}" text-anchor="${a}">${p.v == null ? "No answers" : sbmDeg(p.v).label}${p.v == null ? "" : `<tspan class="db-rad__num" dx="4">${f2(p.v)}</tspan>`}</text>`;
       })
       .join("");
-    const label = pr.map((p) => `${p.short} ${f2(p.v)}`).join(", ");
-    return `<svg viewBox="0 0 340 270" role="img" aria-label="Average score per principle: ${esc(label)}">${rings}${axes}${shape}${dots}${ticks}${labels}</svg>`;
+    const label = pr
+      .map((p) =>
+        p.v == null
+          ? `${p.short} no answers`
+          : `${p.short} ${sbmDeg(p.v).label} (${f2(p.v)})`,
+      )
+      .join(", ");
+    return `<svg viewBox="0 0 400 270" role="img" aria-label="Average score per principle: ${esc(label)}">${rings}${axes}${shape}${ticks}${dots}${labels}</svg>`;
   }
   /* SBM "Indicators per degree": one tile per indicator around a center axis.
      Not yet + Rarely grow to the left, Frequently + Always to the right, so the
@@ -1224,7 +1255,7 @@
           <div class="db-kra__id"><h4>${esc(p.name)}</h4><small class="db-sbm-sub">${p.answered} of ${p.total} answered</small>${badge(p)}</div>
           ${sbmIndicatorBlock(p)}
           <div class="db-sbm-dist" data-i="${i}" role="img" aria-label="${esc(p.name)}: ${DEG.map((x) => x.label + " " + p.counts[x.k]).join(", ")}"></div>
-          <div class="db-chip ${d ? d.cls : "db-sbm-na"}" title="Average of the answered indicators"><b>${f2(p.v)}</b><span>${d ? d.label : "No answers"}</span></div>
+          <div class="db-chip ${d ? d.cls : "db-sbm-na"}" title="Average of the answered indicators (Not yet 1 · Rarely 2 · Frequently 3 · Always 4)"><b>${d ? d.label : "No answers"}</b><span>${p.v == null ? "" : f2(p.v)}</span></div>
         </article>`;
       })
       .join("");

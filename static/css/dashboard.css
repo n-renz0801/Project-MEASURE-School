@@ -1537,7 +1537,7 @@
 .db-sbm-radar svg {
   display: block;
   width: 100%;
-  max-width: 400px;
+  max-width: 470px;
   height: auto;
   margin: auto;
 }
@@ -1545,21 +1545,23 @@
   fill: none;
   stroke: var(--border);
 }
+.db-rad__ring--edge {
+  stroke: color-mix(in srgb, var(--text-light) 32%, var(--white));
+}
+.db-rad__band--tint {
+  fill: color-mix(in srgb, var(--text-light) 8%, var(--white));
+}
 .db-rad__shape {
   fill: var(--c);
-  fill-opacity: 0.22;
+  fill-opacity: 0.18;
   stroke: var(--c);
   stroke-width: 2;
   stroke-linejoin: round;
 }
 .db-rad__dot {
-  fill: var(--c);
+  fill: var(--d3);
   stroke: var(--white);
   stroke-width: 2;
-}
-.db-rad__tick {
-  font-size: 8px;
-  fill: var(--text-light);
 }
 .db-rad__name {
   font-family: inherit;
@@ -1568,9 +1570,23 @@
 }
 .db-rad__val {
   font-family: inherit;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   fill: var(--navy-deep);
+}
+.db-rad__num {
+  font-size: 9.5px;
+  font-weight: 500;
+  fill: var(--text-light);
+}
+.db-rad__tick {
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  fill: var(--text-light);
+  stroke: var(--white);
+  stroke-width: 3px;
+  paint-order: stroke;
+  stroke-linejoin: round;
 }
 
 /* rows */
@@ -1725,8 +1741,17 @@
   background: var(--off-white);
   color: var(--text-light);
 }
+.db-kras--sbm .db-chip b {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
 .db-kras--sbm .db-chip span {
-  font-size: 0.68rem;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 1100px) {
   .db-sbm-dist {
@@ -1881,7 +1906,7 @@
 /* radar: the shape opens out from the centre (1.00), then its points appear */
 .db-rad__shape {
   transform-box: view-box;
-  transform-origin: 170px 135px; /* = cx, cy in sbmRadar() */
+  transform-origin: 200px 135px; /* = cx, cy in sbmRadar() */
   animation: db-sbm-bloom 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
 }
 @keyframes db-sbm-bloom {
