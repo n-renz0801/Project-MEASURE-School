@@ -1092,20 +1092,14 @@ a.aip-mov-tile:hover {
 .aip-cmp-col span {
   font-size: 12.5px;
 }
-.aip-cmp-col--target {
+.aip-cmp-col--target,
+.aip-cmp-col--actual {
   color: var(--ap-accent);
   background: var(--ap-accent-soft);
 }
-.aip-cmp-col--target span {
-  color: var(--ap-muted);
-}
-.aip-cmp-col--actual {
-  color: #fff;
-  background: var(--ap-accent);
-  border-left-color: var(--ap-accent);
-}
+.aip-cmp-col--target span,
 .aip-cmp-col--actual span {
-  color: #c9d3ee;
+  color: var(--ap-muted);
 }
 .aip-cmp-label {
   display: flex;
