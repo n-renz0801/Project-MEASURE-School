@@ -179,6 +179,15 @@ Project-MEASURE-School{% endblock %} {% block content %}
         <div id="eopcrf1-extra-fields"></div>
       </div>
       <div class="eopcrf1-modal-footer">
+        <!-- Shown only when editing an objective; asks for confirmation first. -->
+        <button
+          type="button"
+          class="eopcrf1-btn eopcrf1-modal-delete"
+          id="eopcrf1EntryModalDelete"
+          style="display: none"
+        >
+          <i class="ti ti-trash" aria-hidden="true"></i> Delete objective
+        </button>
         <button type="button" class="eopcrf1-btn" id="eopcrf1EntryModalCancel">
           Cancel
         </button>
@@ -416,6 +425,30 @@ Project-MEASURE-School{% endblock %} {% block content %}
       >
         Yes, reset
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DELETE CONFIRMATION (KRA / objective) ================= -->
+<div id="eopcrf1-del-overlay" class="eopcrf1-confirm-overlay">
+  <div
+    class="eopcrf1-confirm-box"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="eopcrf1-del-title"
+    aria-describedby="eopcrf1-del-body"
+  >
+    <h4 id="eopcrf1-del-title"></h4>
+    <p id="eopcrf1-del-body" class="eopcrf1-reset-intro"></p>
+    <div class="eopcrf1-confirm-actions">
+      <button type="button" id="eopcrf1-del-cancel" class="eopcrf1-btn">
+        Cancel
+      </button>
+      <button
+        type="button"
+        id="eopcrf1-del-ok"
+        class="eopcrf1-btn eopcrf1-btn--danger"
+      ></button>
     </div>
   </div>
 </div>

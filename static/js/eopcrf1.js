@@ -42,6 +42,7 @@
   const modalCancel = document.getElementById("eopcrf1EntryModalCancel");
   const modalOverlay = document.getElementById("eopcrf1EntryModalOverlay");
   const modalSubmit = document.getElementById("eopcrf1EntryModalSubmit");
+  const modalDelete = document.getElementById("eopcrf1EntryModalDelete");
   const fieldPrimaryWrap = document.getElementById("eopcrf1-field-primary");
   const fieldPrimaryLabel = document.getElementById(
     "eopcrf1-field-primary-label",
@@ -70,6 +71,10 @@
   const ICON_PLUS = svg(
     '<path d="M12 5v14M5 12h14"></path>',
     "eopcrf1-inline-icon",
+  );
+  const ICON_INFO = svg(
+    '<circle cx="12" cy="12" r="10"></circle><path d="M12 11v5M12 8v.01"></path>',
+    "eopcrf1-warn-icon",
   );
   const ICON_LINK = svg(
     '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>',
@@ -120,6 +125,9 @@
   // view state: which KRA / objective is open in the detail panel.
   const state = { kras: [], year: null };
   const sel = { kraId: null, objId: null };
+  // Nav-only view state: visible Part tab, collapsed KRA, change trackers.
+  const view = { part: null, collapsed: null, lastKra: null, lastObj: null };
+  const PART_SHORT = { a: "Outcomes", b: "Innovating", c: "Effectiveness" };
   const id = (v) => String(v);
 
   // ================= API helper =================
@@ -403,69 +411,154 @@
     return "";
   }
 
+  function partStats(partKey, kras) {
+    let n = 0;
+    let done = 0;
+    kras
+      .filter((k) => k.part === partKey)
+      .forEach((k) =>
+        k.objectives.forEach((o) => {
+          n++;
+          if (objectiveProgress(k, o).state === "done") done++;
+        }),
+      );
+    return { n, done };
+  }
+
   function renderList(kras) {
-    let html = "";
-    PARTS.forEach((p) => {
-      const partKras = kras.filter((k) => k.part === p.key);
-      const expected = PART_EXPECTED_TOTAL[p.key];
-      const total = partTotals(p.key).weight;
-      const msg = partKras.length ? weightMessage(total, expected) : "";
+    // Follow the selection: if it moved to a KRA in another part, switch tab.
+    const selKra = findKra(sel.kraId);
+    if (selKra && id(selKra.id) !== id(view.lastKra)) view.part = selKra.part;
+    view.lastKra = sel.kraId;
+    if (!view.part) view.part = "a";
+    if (view.collapsed !== null && id(sel.objId) !== id(view.lastObj))
+      view.collapsed = null;
+    view.lastObj = sel.objId;
+
+    const p = PARTS.find((x) => x.key === view.part);
+    const partKras = kras.filter((k) => k.part === p.key);
+    const expected = PART_EXPECTED_TOTAL[p.key];
+    const stats = partStats(p.key, kras);
+
+    // --- Part tabs: name + progress bar (weights are shown in the header below)
+    let html =
+      '<div class="eopcrf1-nv-top"><div class="eopcrf1-nv-tabs" role="tablist">';
+    PARTS.forEach((pt) => {
+      const st = partStats(pt.key, kras);
+      const has = kras.some((k) => k.part === pt.key);
+      const total = partTotals(pt.key).weight;
+      const off =
+        has &&
+        weightMessage(
+          total,
+          pt.key === "b"
+            ? expected && PART_EXPECTED_TOTAL.b
+            : PART_EXPECTED_TOTAL[pt.key],
+        );
+      const on = pt.key === view.part;
       html += `
-        <div class="eopcrf1-list-group">
-          <span>${p.label} &middot; ${escapeHtml(p.full)}</span>
-          <span class="eopcrf1-wchip ${msg ? "is-warn" : "is-ok"}" title="Part weight (target ${expected}%)">${fmtWeight(total)} / ${expected}%</span>
-        </div>`;
-      if (msg)
-        html += `<div class="eopcrf1-wmsg" role="status">${escapeHtml(msg)}</div>`;
-      if (p.key === "b")
-        html += `<div class="eopcrf1-list-tools"><button type="button" class="eopcrf1-add-btn" data-action="add-kra">${ICON_PLUS}Add KRA</button></div>`;
-      partKras.forEach((kra) => {
-        const isSelKra = id(kra.id) === id(sel.kraId);
-        const cls = isSelKra
-          ? sel.objId === null
-            ? " is-active"
-            : " is-parent"
+        <button type="button" role="tab" aria-selected="${on}" class="eopcrf1-nv-tab${on ? " is-on" : ""}" data-action="select-part" data-part="${pt.key}" title="${escapeHtml(pt.full)}">
+          <b>${pt.label}</b>
+          <small>${PART_SHORT[pt.key]}</small>
+          <span class="eopcrf1-nv-bar${st.n && st.done === st.n ? " is-done" : ""}"><i style="width:${st.n ? (st.done / st.n) * 100 : 0}%"></i></span>${
+            off
+              ? '<span class="eopcrf1-nv-tabdot" role="img" aria-label="Weights do not add up"></span>'
+              : ""
+          }
+        </button>`;
+    });
+    html += "</div></div>";
+
+    // --- Part header: full name, progress / KRA count, weight chip or Add KRA
+    const word = p.key === "c" ? "Areas" : "KRAs";
+    const partTotal = partTotals(p.key).weight;
+    const msg = partKras.length ? weightMessage(partTotal, expected) : "";
+    const headLeft =
+      p.key === "b"
+        ? `Your ${word} &middot; ${partKras.length}`
+        : `${stats.done} of ${stats.n} objectives done`;
+    const headRight =
+      p.key === "b"
+        ? partKras.length
+          ? `<button type="button" class="eopcrf1-btn eopcrf1-btn--primary eopcrf1-nv-sm" data-action="add-kra">${ICON_PLUS}Add KRA</button>`
+          : ""
+        : partKras.length
+          ? `<span class="eopcrf1-wchip ${msg ? "is-warn" : "is-ok"}">Weights ${fmtWeight(partTotal)}/${expected}%</span>`
           : "";
-        const actions = kra.locked
-          ? ""
-          : `<button type="button" class="eopcrf1-icon-btn" data-action="add-objective" data-kra-id="${kra.id}" title="Add objective">${ICON_PLUS}</button>
-             <button type="button" class="eopcrf1-icon-btn" data-action="edit-kra" data-kra-id="${kra.id}" title="Edit KRA">${ICON_EDIT}</button>
-             <button type="button" class="eopcrf1-icon-btn eopcrf1-icon-btn--danger" data-action="delete-kra" data-kra-id="${kra.id}" title="Delete KRA">${ICON_TRASH}</button>`;
-        html += `
-          <div class="eopcrf1-kra${cls}">
-            <button type="button" class="eopcrf1-kra-main" data-action="select-kra" data-kra-id="${kra.id}"${cls === " is-active" ? ' aria-current="true"' : ""}>
-              <span class="eopcrf1-kra-name">${kraWord(kra)} ${kraNumber(kra)} &middot; ${kra.text ? escapeHtml(kra.text) : "Untitled KRA"}</span>
-              <span class="eopcrf1-wchip" title="KRA weight">${fmtWeight(kra.weight)}</span>
-            </button>
-            ${actions}
-          </div>`;
+    html += `<div class="eopcrf1-nv-head"><div class="eopcrf1-nv-sub">${escapeHtml(p.full)}</div><div class="eopcrf1-nv-headrow"><b>${headLeft}</b>${headRight}</div></div>`;
+    if (msg)
+      html += `<div class="eopcrf1-wmsg" role="status">${ICON_INFO}<span><b>Weights ${fmtWeight(partTotal)}/${expected}%.</b> ${escapeHtml(msg)}</span></div>`;
+
+    // --- Empty part
+    if (!partKras.length) {
+      html += `<div class="eopcrf1-nv-empty"><b>No ${word} in ${p.label} yet</b>${
+        p.key === "b"
+          ? `<span>Add a KRA first, then add objectives under it.</span><button type="button" class="eopcrf1-btn eopcrf1-btn--primary" data-action="add-kra">${ICON_PLUS}Add your first KRA</button>`
+          : ""
+      }</div>`;
+      listEl.innerHTML = html;
+      return;
+    }
+
+    // --- KRAs (one open at a time); the open KRA shows its actions and an objective rail
+    html += '<div class="eopcrf1-nv-kras">';
+    partKras.forEach((kra) => {
+      const open =
+        id(kra.id) === id(sel.kraId) && id(view.collapsed) !== id(kra.id);
+      const info = kraProgressInfo(kra);
+      const fullName = `${kraWord(kra)} ${kraNumber(kra)} \u00b7 ${kra.text || "Untitled KRA"}`;
+      html += `
+        <div class="eopcrf1-nv-group${open ? " is-open" : ""}">
+        <button type="button" class="eopcrf1-nv-kra${open ? " is-open" : ""}" data-action="toggle-kra" data-kra-id="${kra.id}" aria-expanded="${open}" title="${escapeHtml(fullName)}" aria-label="${escapeHtml(fullName)}, weight ${fmtWeight(kra.weight)}, ${info.done} of ${info.n} objectives complete">
+          <span class="eopcrf1-nv-badge${info.complete ? " is-done" : ""}" aria-hidden="true">${escapeHtml(String(kraNumber(kra)))}</span>
+          <span class="eopcrf1-nv-kra-name">${kra.text ? escapeHtml(kra.text) : "Untitled KRA"}</span>
+          <span class="eopcrf1-nv-kra-w" title="KRA weight &middot; objectives complete"><b>${fmtWeight(kra.weight)}</b><small>${info.done}/${info.n}</small></span>
+        </button>`;
+      if (open) {
+        if (!kra.locked)
+          html += `
+        <div class="eopcrf1-nv-actions">
+          <button type="button" class="eopcrf1-btn eopcrf1-btn--primary eopcrf1-nv-act eopcrf1-nv-act--wide" data-action="add-objective" data-kra-id="${kra.id}">${ICON_PLUS}Add objective</button>
+          <button type="button" class="eopcrf1-btn eopcrf1-nv-act" data-action="edit-kra" data-kra-id="${kra.id}">${ICON_EDIT}Edit KRA</button>
+          <button type="button" class="eopcrf1-btn eopcrf1-nv-act eopcrf1-nv-del" data-action="delete-kra" data-kra-id="${kra.id}">${ICON_TRASH}Delete KRA</button>
+        </div>`;
         const mm = objectiveWeightMismatch(kra);
         if (mm.mismatch)
-          html += `<p class="eopcrf1-warn" role="alert">Objective weights total ${fmtWeight(mm.totalObj)}, but this KRA is ${fmtWeight(mm.kraW)}. They should match.</p>`;
-        kra.objectives.forEach((obj, i) => {
-          const { code } = splitObjectiveText(
-            obj.text,
-            `${kraNumber(kra)}.${i + 1}`,
-          );
-          const isSel = isSelKra && id(obj.id) === id(sel.objId);
-          const prog = objectiveProgress(kra, obj);
-          const tip =
-            prog.state === "done"
-              ? "Complete"
-              : `${PROGRESS_LABELS[prog.state]} (${prog.done}/${prog.total}). Still needed: ${prog.missing.join(", ")}`;
-          html += `
-            <div class="eopcrf1-row eopcrf1-row--obj${isSel ? " is-active" : ""}${prog.state === "done" ? " is-complete" : ""}">
-              <button type="button" class="eopcrf1-row-main" data-action="select-obj" data-kra-id="${kra.id}" data-obj-id="${obj.id}" title="${escapeHtml(tip)}"${isSel ? ' aria-current="true"' : ""}>
-                <span class="eopcrf1-row-top">
-                  <span class="eopcrf1-row-text"><span class="eopcrf1-row-name">Objective ${escapeHtml(code)}</span></span>
-                  <span class="eopcrf1-row-count">${fmtWeight(obj.weight)} &middot; ${prog.done}/${prog.total}</span>
-                </span>
-                <span class="eopcrf1-row-bar"><span style="width:${prog.total ? (prog.done / prog.total) * 100 : 0}%"></span></span>
-              </button>
-            </div>`;
-        });
-      });
+          html += `<div class="eopcrf1-warn eopcrf1-nv-warn" role="alert">${ICON_INFO}<span>Objective weights total ${fmtWeight(mm.totalObj)}, but this KRA is ${fmtWeight(mm.kraW)}. They should match.</span></div>`;
+        if (!kra.objectives.length) {
+          html += `<p class="eopcrf1-nv-none">No objectives yet.${kra.locked ? "" : " Use &ldquo;Add objective&rdquo; above."}</p>`;
+        } else {
+          html += '<div class="eopcrf1-nv-rail">';
+          kra.objectives.forEach((obj, i) => {
+            const { code } = splitObjectiveText(
+              obj.text,
+              `${kraNumber(kra)}.${i + 1}`,
+            );
+            const isSel = id(obj.id) === id(sel.objId);
+            const prog = objectiveProgress(kra, obj);
+            const canEdit = isSel && !kra.locked;
+            const tip =
+              (prog.state === "done"
+                ? "Complete"
+                : `${PROGRESS_LABELS[prog.state]} (${prog.done}/${prog.total}). Still needed: ${prog.missing.join(", ")}`) +
+              (canEdit ? ". Click again to edit this objective." : "");
+            html += `
+          <button type="button" class="eopcrf1-nv-obj${isSel ? " is-active" : ""}" data-action="select-obj" data-kra-id="${kra.id}" data-obj-id="${obj.id}" title="${escapeHtml(tip)}"${isSel ? ' aria-current="true"' : ""}>
+            <i class="eopcrf1-nv-dot is-${prog.state}" aria-hidden="true"></i>
+            <span class="eopcrf1-nv-obj-name">Objective ${escapeHtml(code)}</span>
+            <span class="eopcrf1-nv-obj-meta">${fmtWeight(obj.weight)} &middot; ${prog.done}/${prog.total}</span>${
+              canEdit
+                ? `<span class="eopcrf1-nv-obj-edit" aria-hidden="true">${ICON_EDIT}</span>`
+                : ""
+            }
+          </button>`;
+          });
+          html += "</div>";
+        }
+      }
+      html += "</div>";
     });
+    html += "</div>";
     listEl.innerHTML = html;
   }
 
@@ -669,6 +762,59 @@
     renderEditor(kras);
   }
 
+  // ================= Delete confirmation dialog =================
+  const delOverlay = document.getElementById("eopcrf1-del-overlay");
+  const delTitle = document.getElementById("eopcrf1-del-title");
+  const delBody = document.getElementById("eopcrf1-del-body");
+  const delOk = document.getElementById("eopcrf1-del-ok");
+  const delCancel = document.getElementById("eopcrf1-del-cancel");
+  function askConfirm({ title, body, okLabel }) {
+    return new Promise((resolve) => {
+      delTitle.textContent = title;
+      delBody.textContent = body;
+      delOk.textContent = okLabel;
+      delOverlay.classList.add("visible");
+      const finish = (v) => {
+        delOverlay.classList.remove("visible");
+        delOk.onclick = delCancel.onclick = null;
+        document.removeEventListener("keydown", onKey);
+        resolve(v);
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") finish(false);
+      };
+      document.addEventListener("keydown", onKey);
+      delOk.onclick = () => finish(true);
+      delCancel.onclick = () => finish(false);
+      delCancel.focus(); // safe default: Enter cancels
+    });
+  }
+
+  // Confirm, then delete one objective. Used by the editor header button and
+  // by the Delete button inside the edit form. Returns true when it was deleted.
+  async function deleteObjective(kraId, objId) {
+    const kra = findKra(kraId);
+    const obj = findObjective(kraId, objId);
+    if (!kra || !obj) return false;
+    const code = splitObjectiveText(obj.text, "").code || "";
+    const ok = await askConfirm({
+      title: `Delete objective ${code}?`.replace(" ?", "?"),
+      body: `"${obj.text || "This objective"}" and its ratings, timeline and MOV link will be removed. This cannot be undone.`,
+      okLabel: "Delete objective",
+    });
+    if (!ok) return false;
+    try {
+      await apiCall("DELETE", `/irc/eopcrf1/objective/${objId}`);
+      kra.objectives = kra.objectives.filter((o) => id(o.id) !== id(objId));
+      if (id(sel.objId) === id(objId)) sel.objId = null;
+      render();
+      return true;
+    } catch (err) {
+      alert(err.message);
+      return false;
+    }
+  }
+
   // ================= Progress panel events =================
   segsEl.addEventListener("click", (e) => {
     const seg = e.target.closest(".eopcrf1-seg[data-kra-id]");
@@ -754,6 +900,7 @@
     modalCtx = ctx;
     resetModalFields();
     modalHint.textContent = "";
+    modalDelete.style.display = ctx.mode === "edit-objective" ? "" : "none";
 
     if (ctx.mode === "add-kra" || ctx.mode === "edit-kra") {
       const isEdit = ctx.mode === "edit-kra";
@@ -866,6 +1013,7 @@
   modalOverlay.addEventListener("click", closeModal);
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    if (delOverlay.classList.contains("visible")) return; // the confirm handles it
     if (modal.style.display !== "none") closeModal();
     else if (resetConfirmOverlay.classList.contains("visible"))
       closeResetConfirm();
@@ -981,6 +1129,19 @@
     } catch (err) {
       alert(err.message);
     } finally {
+      modalSubmit.disabled = false;
+    }
+  });
+
+  modalDelete.addEventListener("click", async () => {
+    if (!modalCtx || modalCtx.mode !== "edit-objective") return;
+    const { kraId, objId } = modalCtx;
+    modalDelete.disabled = true;
+    modalSubmit.disabled = true;
+    try {
+      if (await deleteObjective(kraId, objId)) closeModal();
+    } finally {
+      modalDelete.disabled = false;
       modalSubmit.disabled = false;
     }
   });
@@ -1132,7 +1293,14 @@
     const objId = el.dataset.objId || (sel.objId !== null ? sel.objId : null);
 
     switch (action) {
-      case "select-obj":
+      case "select-obj": {
+        // Clicking the already-selected objective again opens its edit form.
+        if (id(sel.kraId) === id(kraId) && id(sel.objId) === id(objId)) {
+          const k = findKra(kraId);
+          if (k && !k.locked)
+            openModal({ mode: "edit-objective", kraId, objId });
+          break;
+        }
         sel.kraId = kraId;
         sel.objId = objId;
         render();
@@ -1146,10 +1314,35 @@
           editorEl.scrollIntoView({ block: "start" });
         }
         break;
+      }
       case "select-kra": {
         const kra = findKra(kraId);
         sel.kraId = kraId;
         sel.objId = kra && kra.objectives.length ? kra.objectives[0].id : null;
+        render();
+        break;
+      }
+      case "select-part": {
+        view.part = el.dataset.part;
+        const first = orderedKras().find((k) => k.part === view.part);
+        if (first) {
+          sel.kraId = first.id;
+          sel.objId = first.objectives.length ? first.objectives[0].id : null;
+          view.collapsed = null;
+        }
+        render();
+        break;
+      }
+      case "toggle-kra": {
+        const kra = findKra(kraId);
+        if (id(sel.kraId) === id(kraId) && id(view.collapsed) !== id(kraId)) {
+          view.collapsed = kraId;
+        } else {
+          sel.kraId = kraId;
+          sel.objId =
+            kra && kra.objectives.length ? kra.objectives[0].id : null;
+          view.collapsed = null;
+        }
         render();
         break;
       }
@@ -1161,10 +1354,17 @@
         break;
       case "delete-kra": {
         const kra = findKra(kraId);
+        const nObj = kra.objectives.length;
         if (
-          !confirm(
-            `Delete "${kra.text || "this KRA"}" and all of its objectives? This cannot be undone.`,
-          )
+          !(await askConfirm({
+            title: `Delete ${kraWord(kra)} ${kraNumber(kra)} · ${kra.text || "Untitled KRA"}?`,
+            body: nObj
+              ? `This also removes its ${nObj} objective${nObj === 1 ? "" : "s"}, with all ratings, timelines and MOV links. This cannot be undone.`
+              : "This cannot be undone.",
+            okLabel: nObj
+              ? `Delete KRA and ${nObj} objective${nObj === 1 ? "" : "s"}`
+              : "Delete KRA",
+          }))
         )
           return;
         try {
@@ -1186,25 +1386,9 @@
       case "edit-objective":
         openModal({ mode: "edit-objective", kraId, objId });
         break;
-      case "delete-objective": {
-        const kra = findKra(kraId);
-        const obj = findObjective(kraId, objId);
-        if (
-          !confirm(
-            `Delete objective "${obj.text || "this objective"}"? This cannot be undone.`,
-          )
-        )
-          return;
-        try {
-          await apiCall("DELETE", `/irc/eopcrf1/objective/${objId}`);
-          kra.objectives = kra.objectives.filter((o) => id(o.id) !== id(objId));
-          sel.objId = null;
-          render();
-        } catch (err) {
-          alert(err.message);
-        }
+      case "delete-objective":
+        await deleteObjective(kraId, objId);
         break;
-      }
       case "add-rubric":
         openModal({
           mode: "add-rubric",
