@@ -1819,3 +1819,191 @@
     0 0 0 2px var(--white),
     0 0 0 4px var(--navy-deep);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SBM body: entrance, replayed every time the section is expanded (as the
+   EOPCRF 1 bars and EOPCRF 2 dots do). One sequence, about 1 second:
+   1. the degree scale and the proportional bar are drawn left to right,
+   2. the score pin travels from 1.00 to where the school actually lands (the
+      one authored moment),
+   3. the radar shape blooms from its centre and its points settle in order,
+   4. the indicator tiles grow out of each row's axis, nearest tile first.
+   All of it starts from the visible, final layout (fill-mode "backwards"), so
+   nothing stays hidden if an animation is skipped, and it leaves hover and
+   focus transforms alone once it has finished. */
+@property --p {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 0%;
+}
+.db-sbm-scale__wrap {
+  animation: db-sbm-pin 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.4s backwards;
+}
+@keyframes db-sbm-pin {
+  from {
+    --p: 0%;
+  }
+}
+.db-sbm-scale__bubble,
+.db-sbm-scale__bar u {
+  animation: db-sbm-fade 0.25s ease-out 0.3s backwards;
+}
+.db-sbm-scale__bar {
+  animation: db-sbm-wipe 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes db-sbm-wipe {
+  from {
+    clip-path: inset(
+      -8px 100% -8px -8px
+    ); /* negative: keeps the ring and pin */
+  }
+  to {
+    clip-path: inset(-8px -8px -8px -8px);
+  }
+}
+.db-sbm-seg {
+  animation: db-sbm-seg 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+}
+@keyframes db-sbm-seg {
+  from {
+    clip-path: inset(0 100% 0 0 round 9px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 9px);
+  }
+}
+@keyframes db-sbm-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* radar: the shape opens out from the centre (1.00), then its points appear */
+.db-rad__shape {
+  transform-box: view-box;
+  transform-origin: 170px 135px; /* = cx, cy in sbmRadar() */
+  animation: db-sbm-bloom 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
+}
+@keyframes db-sbm-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+}
+.db-rad__dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: db-sbm-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(0.4s + var(--d, 0ms));
+}
+@keyframes db-sbm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+/* indicator tiles: the axis is drawn first, then each tile grows out of it
+   (from its own axis-side edge), nearest first, so the low side and the high
+   side open outward together. Rows follow one another 60ms apart. The cell is
+   redrawn by JS (sbmPlot), which sets --r (row), --d (tile) and --t0 (time
+   already elapsed) and adds .is-enter only while the entrance is running. */
+.db-sbm-dist.is-enter .db-pl__ax {
+  animation: db-sbm-axis 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--r, 0ms) + 200ms - var(--t0, 0ms));
+}
+@keyframes db-sbm-axis {
+  from {
+    clip-path: inset(50% 0 50% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.db-sbm-dist.is-enter .db-pl__g i {
+  animation: db-sbm-tile 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--r, 0ms) + 300ms + var(--d, 0ms) - var(--t0, 0ms));
+}
+.db-sbm-dist.is-enter .db-pl__g--L i {
+  transform-origin: right center;
+}
+.db-sbm-dist.is-enter .db-pl__g--R i {
+  transform-origin: left center;
+}
+@keyframes db-sbm-tile {
+  from {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+}
+.db-sbm-dist.is-enter .db-pl__br,
+.db-sbm-dist.is-enter .db-pl__lb {
+  animation: db-sbm-fade 0.3s ease-out backwards;
+  animation-delay: calc(var(--r, 0ms) + 500ms - var(--t0, 0ms));
+}
+
+/* reduced motion: no entrance at all, same as the other sections */
+@media (prefers-reduced-motion: reduce) {
+  .db-sbm-scale__wrap,
+  .db-sbm-scale__bubble,
+  .db-sbm-scale__bar,
+  .db-sbm-scale__bar u,
+  .db-sbm-seg,
+  .db-rad__shape,
+  .db-rad__dot,
+  .db-sbm-dist.is-enter .db-pl__ax,
+  .db-sbm-dist.is-enter .db-pl__g i,
+  .db-sbm-dist.is-enter .db-pl__br,
+  .db-sbm-dist.is-enter .db-pl__lb {
+    animation: none;
+  }
+}
+
+/* counting numbers (see countUp in dashboard.js): equal-width digits, and the
+   width is reserved by the script, so the text around a number never re-wraps */
+.db data {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ranked rows (EOPCRF 1, EOPCRF 2 and SBM): each row rises into place, one
+   after another (80ms apart, capped after the 8th row), so a row has landed
+   by the time its tiles or dots appear. --kr is set per row (inline for
+   EOPCRF 1 and 2, below for the 6 SBM rows). Replays on every expand, and on
+   EOPCRF 1 whenever another part is picked. */
+.db-kras--sbm > .db-kra:nth-child(2) {
+  --kr: 0ms;
+}
+.db-kras--sbm > .db-kra:nth-child(3) {
+  --kr: 80ms;
+}
+.db-kras--sbm > .db-kra:nth-child(4) {
+  --kr: 160ms;
+}
+.db-kras--sbm > .db-kra:nth-child(5) {
+  --kr: 240ms;
+}
+.db-kras--sbm > .db-kra:nth-child(6) {
+  --kr: 320ms;
+}
+.db-kras--sbm > .db-kra:nth-child(7) {
+  --kr: 400ms;
+}
+.db-kras--sbm > .db-kra:nth-child(8) {
+  --kr: 480ms;
+}
+.db-kras > .db-kra {
+  animation: db-sbm-row 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--kr, 0ms) + 80ms);
+}
+@keyframes db-sbm-row {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-kras > .db-kra {
+    animation: none;
+  }
+}

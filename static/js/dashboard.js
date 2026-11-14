@@ -458,6 +458,50 @@
       val: sec.querySelector(".db-val"),
     };
   }
+  /* Count-up: <data data-to="3.71" data-from="1" data-dec="2"> elements count
+     from data-from (default 0) to data-to, in step with the SBM pin (same delay,
+     duration and ease-out). Plays on load and every time a section is expanded.
+     The final text is already in the markup, so nothing depends on this script
+     finishing; with reduced motion the number is simply left as it is. */
+  const COUNT_DELAY = 400,
+    COUNT_MS = 850;
+  function countUp(scope) {
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scope.querySelectorAll("data[data-to]").forEach((el) => {
+      cancelAnimationFrame(el._raf);
+      const to = +el.dataset.to,
+        from = +(el.dataset.from || 0),
+        dec = +(el.dataset.dec || 0),
+        fmt = (v) => v.toFixed(dec);
+      el.textContent = fmt(to);
+      if (calm || from === to) return;
+      /* Keep the width fixed while the digits change: reserve the width of the
+         widest possible reading (every digit as the widest digit of this font).
+         Otherwise the number's width changes the width of the column it sits
+         in and the text next to it re-wraps while counting. */
+      el.style.minWidth = "";
+      let wide = "0",
+        wideW = 0;
+      for (let d = 0; d < 10; d++) {
+        el.textContent = String(d);
+        if (el.offsetWidth > wideW) {
+          wideW = el.offsetWidth;
+          wide = String(d);
+        }
+      }
+      el.textContent = fmt(to).replace(/\d/g, wide);
+      el.style.minWidth = el.getBoundingClientRect().width + "px";
+      el.textContent = fmt(from);
+      const t0 = performance.now() + COUNT_DELAY;
+      const tick = (now) => {
+        const t = Math.min(1, Math.max(0, (now - t0) / COUNT_MS));
+        const e = t >= 1 ? 1 : 1 - Math.pow(2, -10 * t); // ~ cubic-bezier(.16,1,.3,1)
+        el.textContent = fmt(from + (to - from) * e);
+        if (t < 1) el._raf = requestAnimationFrame(tick);
+      };
+      el._raf = requestAnimationFrame(tick);
+    });
+  }
   /* Smooth, subtle expand/collapse: height + padding + a light fade. A quick
      second click reverses from wherever the animation had got to. Falls back
      to an instant toggle with reduced motion. */
@@ -477,6 +521,7 @@
     const o0 = body.hidden ? 0 : parseFloat(getComputedStyle(body).opacity);
     if (body._anim) body._anim.cancel();
     body.hidden = false;
+    if (on) countUp(sec);
     const cs = getComputedStyle(body);
     const full = body.offsetHeight;
     const pt = parseFloat(cs.paddingTop);
@@ -650,7 +695,7 @@
           .map(({ s, i }, r) => {
             const band = bandOf(s.v);
             return `
-        <article class="db-kra${i === hiIdx ? " db-kra--hi" : i === loIdx ? " db-kra--lo" : ""}" aria-label="${esc(s.name)}">
+        <article class="db-kra${i === hiIdx ? " db-kra--hi" : i === loIdx ? " db-kra--lo" : ""}" style="--kr:${Math.min(r, 8) * 80}ms" aria-label="${esc(s.name)}">
           <span class="db-rank" title="KRA ${r + 1} of ${ranked.length}">${r + 1}</span>
           <div class="db-kra__id"><h4>${esc(s.name)}</h4>${badge(i)}</div>
           ${objBlock(s)}
@@ -835,7 +880,7 @@
         }
         const b = bandOf(s.v).b;
         return `${divider}
-        <article class="db-kra${i === hiIdx ? " db-kra--hi" : i === loIdx ? " db-kra--lo" : ""}" aria-label="${esc(s.title)}">
+        <article class="db-kra${i === hiIdx ? " db-kra--hi" : i === loIdx ? " db-kra--lo" : ""}" style="--kr:${Math.min(i, 8) * 80}ms" aria-label="${esc(s.title)}">
           <span class="db-rank" title="Competency ${i + 1} of ${rated.length}">${i + 1}</span>
           <div class="db-kra__id"><h4>${esc(s.title)}</h4>${badge(i)}</div>
           ${e2IndicatorBlock(s)}
@@ -954,8 +999,8 @@
           : "";
     const dots = pts
       .map(
-        (q) =>
-          `<circle class="db-rad__dot" cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4"/>`,
+        (q, i) =>
+          `<circle class="db-rad__dot" style="--d:${i * 60}ms" cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="4"/>`,
       )
       .join("");
     const ticks = [2, 3, 4]
@@ -985,12 +1030,32 @@
   let sbmPr = [],
     sbmLo = 0,
     sbmHi = 0;
+  const SBM_ENTER_MS = 1700; // longest tile entrance: row delay + stagger + tile
+
   function sbmPlot(el) {
     const p = sbmPr[+el.dataset.i],
       W = el.clientWidth;
-    if (!p || !W) return;
+    if (!p) return;
+    if (!W) {
+      el._seen = false; // hidden (section collapsed): next draw is an entrance
+      return;
+    }
     if (el.querySelector(".is-on"))
       root.dispatchEvent(new Event("db-tip-hide"));
+    /* Entrance: the tiles grow out of the axis when the cell first becomes
+       visible (page load, or the section being expanded), like the EOPCRF 2
+       dots. A resize redraws the cell, so a redraw inside the entrance window
+       carries on from where the animation had got to (negative delay) and one
+       after it draws the tiles at rest. */
+    const now = performance.now();
+    if (!el._seen) {
+      el._seen = true;
+      el._t0 = now;
+    }
+    const gone = now - el._t0;
+    el.style.setProperty("--r", +el.dataset.i * 80 + "ms");
+    el.style.setProperty("--t0", Math.round(gone) + "ms");
+    el.classList.toggle("is-enter", gone < SBM_ENTER_MS);
     if (!p.answered) {
       el.innerHTML = `<span class="db-pl__na">No indicators answered yet</span>`;
       return;
@@ -1035,14 +1100,15 @@
       const s = PAD + (inner ? 0 : step * nOf(side === "L" ? 1 : 2));
       const w = step * n - GAP;
       const left = side === "L" ? ax - s - w : ax + s;
+      const inn = inner ? 0 : nOf(side === "L" ? 1 : 2); // tiles between the axis and this group
       const tiles = p.items
         .filter((it) => it.v === DEG[i].score)
         .map(
-          (it) =>
-            `<i class="${DEG[i].cls}" style="width:${tw.toFixed(2)}px" data-n="${it.n}" data-d="${DEG[i].label}" data-t="${esc(it.t)}" tabindex="0" role="button" aria-label="Indicator ${it.n}, ${DEG[i].label}"></i>`,
+          (it, k) =>
+            `<i class="${DEG[i].cls}" style="width:${tw.toFixed(2)}px;--d:${(inn + (side === "L" ? n - 1 - k : k)) * 26}ms" data-n="${it.n}" data-d="${DEG[i].label}" data-t="${esc(it.t)}" tabindex="0" role="button" aria-label="Indicator ${it.n}, ${DEG[i].label}"></i>`,
         )
         .join("");
-      h += `<div class="db-pl__g" style="left:${left}px;width:${w}px;gap:${GAP}px">${tiles}</div>`;
+      h += `<div class="db-pl__g db-pl__g--${side}" style="left:${left}px;width:${w}px;gap:${GAP}px">${tiles}</div>`;
       h += `<div class="db-pl__br db-pl__br--${inner ? "up" : "dn"}" style="left:${left}px;width:${w}px"></div>`;
       labels.push({ i, n, side, inner, cx: left + w / 2 });
     });
@@ -1112,6 +1178,9 @@
       overall == null ? "–" : sbmDeg(overall).label,
       overall == null ? "" : f2(overall) + " of 4",
     );
+    if (overall != null)
+      val.querySelector("small").innerHTML =
+        `<data data-to="${overall}" data-from="1" data-dec="2">${f2(overall)}</data> of 4`;
     if (!rated.length) {
       body.innerHTML = msg(
         "No SBM responses yet.",
@@ -1164,20 +1233,20 @@
         <div class="db-sbm-card db-sbm-card--hl db-sbm-sum">
           <h3>Overall degree of manifestation<small>${answered} of ${all} answered</small></h3>
           <div class="db-sbm-top">
-            <div class="db-sbm-big"><b>${esc(overallDeg.label)}</b><span>${f2(overall)} of 4.00 · mean of ${rated.length} principle${rated.length === 1 ? "" : "s"}</span></div>
+            <div class="db-sbm-big"><b>${esc(overallDeg.label)}</b><span><data data-to="${overall}" data-from="1" data-dec="2">${f2(overall)}</data> of 4.00 · mean of ${rated.length} principle${rated.length === 1 ? "" : "s"}</span></div>
             <div class="db-sbm-stats">
-              <div class="db-sbm-stat"><b>${favPct}%</b><span>Frequently or Always<br>manifested</span></div>
-              <div class="db-sbm-stat"><b>${hiPrinc}<small> of ${rated.length}</small></b><span>principles at Frequently<br>or higher</span></div>
+              <div class="db-sbm-stat"><b><data data-to="${favPct}">${favPct}</data>%</b><span>Frequently or Always<br>manifested</span></div>
+              <div class="db-sbm-stat"><b><data data-to="${hiPrinc}">${hiPrinc}</data><small> of ${rated.length}</small></b><span>principles at Frequently<br>or higher</span></div>
             </div>
           </div>
           <div class="db-sbm-scale" role="img" aria-label="Overall ${f2(overall)} of 4, ${esc(overallDeg.label)}. Boundaries at ${SBM_CUTS.map(f2).join(", ")}">
             <div class="db-sbm-scale__wrap" style="--p:${pin}%">
-              <span class="db-sbm-scale__bubble">${f2(overall)}</span>
+              <span class="db-sbm-scale__bubble"><data data-to="${overall}" data-from="1" data-dec="2">${f2(overall)}</data></span>
               <div class="db-sbm-scale__bar">${DEG.map((d, i) => `<span class="${d.cls}${d === overallDeg ? " is-on" : ""}">${d.label}</span>`).join("")}<u></u></div></div>
             <div class="db-sbm-scale__ticks" aria-hidden="true">${[1, ...SBM_CUTS, 4].map((v, i) => `<span style="left:${i * 25}%">${f2(v)}</span>`).join("")}</div></div>
           <h3 class="db-sbm-sum__h">Total across all principles</h3>
           <div class="db-sbm-seg" role="img" aria-label="${tot.map((d) => d.label + " " + d.n).join(", ")}">${tot.map((d) => (d.n ? `<span class="${d.cls}" style="flex:${d.n}">${d.n}</span>` : "")).join("")}</div>
-          <div class="db-sbm-cols">${tot.map((d, i) => `<span class="db-sbm-col" title="${d.label}: ${d.n} of ${answered}"><i style="background:${sbmSwatch(i)}"></i>${d.label}<em>${answered ? Math.round((d.n / answered) * 100) : 0}%</em></span>`).join("")}</div>
+          <div class="db-sbm-cols">${tot.map((d, i) => `<span class="db-sbm-col" title="${d.label}: ${d.n} of ${answered}"><i style="background:${sbmSwatch(i)}"></i>${d.label}<em><data data-to="${answered ? Math.round((d.n / answered) * 100) : 0}">${answered ? Math.round((d.n / answered) * 100) : 0}</data>%</em></span>`).join("")}</div>
         </div>
         <div class="db-sbm-card db-sbm-radar"><h3>Average score per principle</h3>${sbmRadar(pr)}</div>
       </div>
@@ -1185,6 +1254,7 @@
         <div class="db-kras__head" aria-hidden="true"><span>#</span><span>Principle</span><span>Highest and lowest indicator</span><span>Indicators per degree<small class="db-kras__note"> · 1 tile = 1 indicator</small></span><span>Average</span></div>${rows}
       </div>`;
     sbmPlots(body);
+    countUp(sec);
   }
 
   /* ── AIP (PLACEHOLDER DATA) ──────────────────────────────────────────── */
