@@ -760,6 +760,7 @@
   function e2Dots(s) {
     const X = (r) => 24 + (r - 1) * 43;
     let dots = "";
+    let seq = 0; /* dots appear one after another: left to right, bottom up */
     [1, 2, 3, 4, 5].forEach((r) => {
       const hit = s.items.filter((x) => x.v === r);
       if (!hit.length) {
@@ -767,7 +768,7 @@
         return;
       }
       hit.forEach((x, k) => {
-        dots += `<circle data-r="${r}" data-n="${x.n}" data-t="${esc(x.t)}" tabindex="0" role="button" aria-label="Indicator ${x.n}, rated ${r}" cx="${X(r)}" cy="${40 - k * 9}" r="4.2"/>`;
+        dots += `<g class="db-dots__pt" style="--d:${seq++ * 70}ms"><circle data-r="${r}" data-n="${x.n}" data-t="${esc(x.t)}" tabindex="0" role="button" aria-label="Indicator ${x.n}, rated ${r}" cx="${X(r)}" cy="${40 - k * 9}" r="4.2"/></g>`;
       });
     });
     const summary = [5, 4, 3, 2, 1]

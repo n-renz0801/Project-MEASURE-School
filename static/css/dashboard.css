@@ -1215,6 +1215,22 @@
   font-size: 9px;
   fill: var(--text-light);
 }
+/* entrance: dots appear one after another: left to right (rating 1 to 5),
+   bottom dot first. The
+   animation is on the wrapper <g>, so hover and click styles on the dot itself
+   are not affected. It replays each time the section is expanded. */
+.db-dots__pt {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: db-dot-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes db-dot-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.5);
+  }
+}
 .db-dots__ghost {
   fill: none;
   stroke: var(--border);
@@ -1310,6 +1326,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .db-tip,
+  .db-dots__pt,
   .db-dots circle[data-n]:hover:not(.is-on) {
     animation: none;
   }
