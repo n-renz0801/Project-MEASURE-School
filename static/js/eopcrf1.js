@@ -48,8 +48,6 @@
     "eopcrf1-field-primary-label",
   );
   const primaryInput = document.getElementById("eopcrf1-entry-text");
-  const fieldUrlWrap = document.getElementById("eopcrf1-field-url");
-  const urlInput = document.getElementById("eopcrf1-entry-url");
   const fieldRateWrap = document.getElementById("eopcrf1-field-rate");
   const rateSelect = document.getElementById("eopcrf1-entry-rate");
   const fieldWeightWrap = document.getElementById("eopcrf1-field-weight");
@@ -75,9 +73,6 @@
   const ICON_INFO = svg(
     '<circle cx="12" cy="12" r="10"></circle><path d="M12 11v5M12 8v.01"></path>',
     "eopcrf1-warn-icon",
-  );
-  const ICON_LINK = svg(
-    '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>',
   );
   const ICON_LOCK = svg(
     '<rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
@@ -126,7 +121,16 @@
   const state = { kras: [], year: null };
   const sel = { kraId: null, objId: null };
   // Nav-only view state: visible Part tab, collapsed KRA, change trackers.
-  const view = { part: null, collapsed: null, lastKra: null, lastObj: null };
+  const view = {
+    part: null,
+    collapsed: null,
+    lastKra: null,
+    lastObj: null,
+    catOff: new Set(), // rating categories the user folded; all start open
+    alignOpen: false, // Program alignment fold (objective view)
+    movMode: null, // null | "edit" | "confirm" for the MOV link strip
+    movObjId: null, // the objective movMode applies to
+  };
   const PART_SHORT = { a: "Outcomes", b: "Innovating", c: "Effectiveness" };
   const id = (v) => String(v);
 
@@ -385,18 +389,28 @@
     progressCountEl.innerHTML = `<strong>${done} of ${total}</strong><span>complete</span>`;
     segsEl.setAttribute("aria-valuemax", String(total));
     segsEl.setAttribute("aria-valuenow", String(done));
-    segsEl.innerHTML = kras
-      .map((k) => {
-        const info = kraProgressInfo(k);
-        const active = id(k.id) === id(sel.kraId);
-        const title = `${kraWord(k)} ${kraNumber(k)} (Part ${partCode(k.part)}): ${info.done} of ${info.n} objectives complete`;
-        return `
-          <button type="button" class="eopcrf1-seg${active ? " is-active" : ""}${info.complete ? " is-complete" : ""}" data-kra-id="${k.id}" title="${escapeHtml(title)}">
+    // One group per Part; only the first segment of a group carries the Part name.
+    segsEl.innerHTML = PARTS.map((p) => {
+      const partKras = kras.filter((k) => k.part === p.key);
+      if (!partKras.length) return "";
+      const segs = partKras
+        .map((k, i) => {
+          const info = kraProgressInfo(k);
+          const active = id(k.id) === id(sel.kraId);
+          const title = `${kraWord(k)} ${kraNumber(k)} (${p.label}): ${info.done} of ${info.n} objectives complete`;
+          const label =
+            i === 0
+              ? `<b>${partCode(p.key)}</b> &middot; ${kraNumber(k)}`
+              : String(kraNumber(k));
+          return `
+          <button type="button" class="eopcrf1-seg${active ? " is-active" : ""}${info.complete ? " is-complete" : ""}" data-kra-id="${k.id}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${active ? ' aria-current="true"' : ""}>
             <span class="eopcrf1-seg-bar"><span style="width:${info.frac * 100}%"></span></span>
-            <span class="eopcrf1-seg-label">${partCode(k.part)} &middot; ${kraNumber(k)}</span>
+            <span class="eopcrf1-seg-label">${label}</span>
           </button>`;
-      })
-      .join("");
+        })
+        .join("");
+      return `<div class="eopcrf1-pgroup" style="--n:${partKras.length}">${segs}</div>`;
+    }).join("");
     nextBtn.hidden = complete || total === 0;
     doneBadge.hidden = !complete;
   }
@@ -569,31 +583,54 @@
       ? '<span class="eopcrf1-req" title="Required" aria-label="Required">*</span>'
       : "";
 
-  function field(label, valueHtml, extraCls) {
-    return `<div class="eopcrf1-fact${extraCls ? " " + extraCls : ""}"><span class="eopcrf1-label">${label}</span><div class="eopcrf1-fact-value">${valueHtml}</div></div>`;
-  }
+  // Tabler icon helper (the page already loads Tabler Icons).
+  const ti = (name) => `<i class="ti ti-${name}" aria-hidden="true"></i>`;
+  const chip = (tone, html) =>
+    `<span class="eopcrf1-chip eopcrf1-chip--${tone}">${html}</span>`;
+
+  // Label + value pair used inside the cards. `labelHtml` may carry a button.
+  const kv = (labelHtml, valueHtml, cls) =>
+    `<div class="eopcrf1-kv${cls ? " " + cls : ""}"><div class="eopcrf1-kv-label">${labelHtml}</div><div class="eopcrf1-kv-value">${valueHtml}</div></div>`;
   const textOrDash = (v) =>
     v ? escapeHtml(v) : '<span class="eopcrf1-muted">—</span>';
+  const numValue = (v) => {
+    const t = v === null || v === undefined ? "" : String(v).trim();
+    if (!t || t === "—") return '<span class="eopcrf1-muted">—</span>';
+    return `<span class="eopcrf1-num${t.length > 14 ? " is-long" : ""}">${escapeHtml(t)}</span>`;
+  };
+  const card = (mod, title, status, body, footer = "") => `
+    <section class="eopcrf1-card eopcrf1-card--${mod}">
+      <div class="eopcrf1-card-head">
+        <h4>${title}</h4>
+        <span class="eopcrf1-card-status">${status}</span>
+      </div>
+      <div class="eopcrf1-card-body">${body}</div>${footer}
+    </section>`;
 
-  function renderKraSection(kra) {
+  // Context strip: which KRA this objective belongs to, and its weight.
+  // Program alignment (Part I-A) is a label/value list inside a fold.
+  function renderKraSection(kra, alignOpen) {
+    const row = (label, value) =>
+      `<div class="eopcrf1-align-row"><dt>${label}</dt><dd>${textOrDash(value)}</dd></div>`;
     const align =
       kra.part === "a"
-        ? field("GAA programs / subprograms", textOrDash(kra.gaaProgram)) +
-          field("BEDP pillars", textOrDash(kra.bedpPillars)) +
-          field(
-            "Current administration agenda",
-            textOrDash(kra.adminAgenda),
-            "eopcrf1-fact--wide",
-          )
+        ? `<details class="eopcrf1-align"${alignOpen ? " open data-forced" : view.alignOpen ? " open" : ""}>
+             <summary>${ti("chevron-right")}Program alignment</summary>
+             <dl class="eopcrf1-align-list">
+               ${row("GAA programs / subprograms", kra.gaaProgram)}
+               ${row("BEDP pillars", kra.bedpPillars)}
+               ${row("Current administration agenda", kra.adminAgenda)}
+             </dl>
+           </details>`
         : "";
     return `
-      <section class="eopcrf1-sec">
-        <h4>${kra.part === "c" ? "Area" : "Key result area"}</h4>
-        <div class="eopcrf1-facts">
-          ${field(`${kraWord(kra)} ${kraNumber(kra)}`, kra.text ? escapeHtml(kra.text) : '<span class="eopcrf1-muted">Untitled KRA</span>')}
-          ${field("Weight", escapeHtml(fmtWeight(kra.weight)))}
-          ${align}
+      <section class="eopcrf1-ctx" aria-label="${kra.part === "c" ? "Area" : "Key result area"}">
+        <div class="eopcrf1-ctx-row">
+          <span class="eopcrf1-ctx-tag">${kraWord(kra)} ${kraNumber(kra)}</span>
+          <span class="eopcrf1-ctx-text">${kra.text ? escapeHtml(kra.text) : '<span class="eopcrf1-muted">Untitled KRA</span>'}</span>
+          <div class="eopcrf1-wt" title="Weight of this ${kraWord(kra)}"><b>${escapeHtml(fmtWeight(kra.weight))}</b><span>weight</span></div>
         </div>
+        ${align}
       </section>`;
   }
 
@@ -611,14 +648,14 @@
     let actions = "";
     if (!locked) {
       actions = item
-        ? `<span class="eopcrf1-level-actions">
+        ? `<span class="eopcrf1-level-actions is-quiet">
              <button type="button" class="eopcrf1-icon-btn" data-action="edit-rubric" data-category="${cat.key}" data-item-id="${item.id}" title="Edit descriptor">${ICON_EDIT}</button>
              <button type="button" class="eopcrf1-icon-btn eopcrf1-icon-btn--danger" data-action="delete-rubric" data-category="${cat.key}" data-item-id="${item.id}" title="Remove descriptor">${ICON_TRASH}</button>
            </span>`
         : `<span class="eopcrf1-level-actions"><button type="button" class="eopcrf1-btn eopcrf1-btn--ghost eopcrf1-btn--sm" data-action="add-rubric" data-category="${cat.key}" data-level="${level.n}">${ICON_PLUS}Add descriptor</button></span>`;
     }
     return `
-      <div class="eopcrf1-level${isSel ? " is-selected" : ""}${pickable ? "" : " is-disabled"}" role="radio" aria-checked="${isSel}" ${pickable ? 'tabindex="0" data-action="pick-level"' : 'tabindex="-1" aria-disabled="true"'} data-category="${cat.key}" data-level="${level.n}" title="${isSel ? "Click to clear this rating" : pickable ? `Rate ${cat.label.toLowerCase()} ${level.n}` : "No descriptor for this level, so it can't be rated"}">
+      <div class="eopcrf1-level eopcrf1-level--${level.n}${isSel ? " is-selected" : ""}${pickable ? "" : " is-disabled"}" role="radio" aria-checked="${isSel}" ${pickable ? 'tabindex="0" data-action="pick-level"' : 'tabindex="-1" aria-disabled="true"'} data-category="${cat.key}" data-level="${level.n}" title="${isSel ? "Click to clear this rating" : pickable ? `Rate ${cat.label.toLowerCase()} ${level.n}` : "No descriptor for this level, so it can't be rated"}">
         <span class="eopcrf1-level-num">${level.n}</span>
         <span class="eopcrf1-level-name">${level.name}</span>
         <span class="eopcrf1-level-text">${item ? escapeHtml(item.label) : '<span class="eopcrf1-muted">No descriptor for this level</span>'}</span>
@@ -629,66 +666,161 @@
   function renderCategory(obj, cat, locked) {
     const raw = obj.ratings[cat.key];
     const selectedRate = hasVal(raw) ? Number(raw) : null;
+    const applicable = hasDescriptors(obj, cat.key);
+    const collapsed = view.catOff.has(cat.key);
+    const status =
+      selectedRate !== null
+        ? chip("ok", `${selectedRate} · ${levelName(selectedRate)}`)
+        : applicable
+          ? chip("warn", `Not rated${reqMark(true)}`)
+          : chip("muted", locked ? "Not applicable" : "No descriptors yet");
     return `
-      <div class="eopcrf1-cat">
-        <div class="eopcrf1-cat-head">
-          <h4>${cat.label}${reqMark(selectedRate === null && hasDescriptors(obj, cat.key))}</h4>
-          <span class="eopcrf1-cat-rating${selectedRate === null ? " is-empty" : ""}">${selectedRate === null ? "Not rated" : `${selectedRate} · ${levelName(selectedRate)}`}</span>
-        </div>
+      <div class="eopcrf1-cat eopcrf1-cat--${cat.key}${collapsed ? " is-collapsed" : ""}">
+        <button type="button" class="eopcrf1-cat-toggle" data-action="toggle-cat" data-category="${cat.key}" aria-expanded="${!collapsed}">
+          <span class="eopcrf1-cat-chev">${ti("chevron-down")}</span>
+          <span class="eopcrf1-cat-name">${cat.label}</span>
+          ${status}
+        </button>
         <div class="eopcrf1-levels" role="radiogroup" aria-label="${cat.label} rating">
           ${LEVELS.map((l) => renderLevelRow(obj, cat, l, selectedRate, locked)).join("")}
         </div>
       </div>`;
   }
 
-  function renderMovLink(obj) {
-    if (!obj.mov) {
-      return `<button type="button" class="eopcrf1-mini" data-action="edit-mov">+ Add link</button>`;
+  // ---- MOV link: same strip and behaviour as the AIP page ----
+  const MOV_MAX = 2000;
+
+  function normalizeMovUrl(raw) {
+    let v = String(raw || "").trim();
+    if (!v) return { error: "Paste the link to your evidence." };
+    if (/\s/.test(v)) return { error: "A link can\u2019t contain spaces." };
+    if (/^[a-z][a-z0-9+.-]*:(?!\/\/|\d)/i.test(v))
+      return { error: "Use a link that starts with http:// or https://." };
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = "https://" + v;
+    let u;
+    try {
+      u = new URL(v);
+    } catch (e) {
+      return { error: "That doesn\u2019t look like a valid link." };
     }
-    return `
-      <div class="eopcrf1-mov-row">
-        <a class="eopcrf1-mov-link" href="${escapeHtml(obj.mov)}" target="_blank" rel="noopener noreferrer">${ICON_LINK}<span>${escapeHtml(obj.mov)}</span></a>
-        <button type="button" class="eopcrf1-icon-btn" data-action="edit-mov" title="Edit link">${ICON_EDIT}</button>
-        <button type="button" class="eopcrf1-icon-btn eopcrf1-icon-btn--danger" data-action="delete-mov" title="Remove link">${ICON_TRASH}</button>
-      </div>`;
+    if (u.protocol !== "http:" && u.protocol !== "https:")
+      return { error: "Use a link that starts with http:// or https://." };
+    if (!u.hostname.includes(".") && u.hostname !== "localhost")
+      return { error: "That doesn\u2019t look like a valid link." };
+    if (v.length > MOV_MAX)
+      return {
+        error: "That link is too long (max " + MOV_MAX + " characters).",
+      };
+    return { url: v };
   }
 
+  function hostOf(url) {
+    try {
+      return new URL(url).host;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  function renderMovLink(obj) {
+    const link = obj.mov || "";
+    const mode = id(view.movObjId) === id(obj.id) ? view.movMode : null;
+    const label = '<span class="eopcrf1-mov-label">MOV link</span>';
+    if (!link || mode === "edit") {
+      return `
+        <div class="eopcrf1-mov${link ? "" : " is-empty"}">
+          ${label}
+          <input type="text" inputmode="url" class="eopcrf1-mov-input" value="${escapeHtml(link)}"
+                 placeholder="Paste the MOV link" autocomplete="off" spellcheck="false"
+                 aria-label="MOV link for this objective" />
+          <button type="button" class="eopcrf1-mov-btn eopcrf1-mov-btn--primary" data-action="mov-save"${link ? "" : " disabled"}>${link ? "Save" : "Attach"}</button>
+          ${link ? '<button type="button" class="eopcrf1-mov-btn" data-action="mov-cancel">Cancel</button>' : ""}
+          <span class="eopcrf1-mov-err" role="alert" hidden></span>
+        </div>`;
+    }
+    const host = hostOf(link);
+    const safe = /^https?:\/\//i.test(link);
+    const inner = `
+      <span class="eopcrf1-mov-ico">${ti("link")}</span>
+      <span class="eopcrf1-mov-host">${escapeHtml(host)}</span>
+      ${safe ? `<span class="eopcrf1-mov-ext">${ti("external-link")}</span>` : ""}`;
+    const tile = safe
+      ? `<a class="eopcrf1-mov-tile" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(link)}" aria-label="Open MOV link: ${escapeHtml(host)} (opens in a new tab)">${inner}</a>`
+      : `<span class="eopcrf1-mov-tile" title="${escapeHtml(link)}">${inner}</span>`;
+    const actions =
+      mode === "confirm"
+        ? `<span class="eopcrf1-mov-ask">Remove this link?</span>
+           <button type="button" class="eopcrf1-mov-btn eopcrf1-mov-btn--danger" data-action="mov-remove-yes">Remove</button>
+           <button type="button" class="eopcrf1-mov-btn" data-action="mov-remove-no">Keep</button>`
+        : `<span class="eopcrf1-mov-tools">
+             <button type="button" class="eopcrf1-mov-icon" data-action="mov-edit" aria-label="Edit MOV link" title="Edit link">${ti("pencil")}</button>
+             <button type="button" class="eopcrf1-mov-icon eopcrf1-mov-icon--danger" data-action="mov-remove" aria-label="Remove MOV link" title="Remove link">${ti("trash")}</button>
+           </span>`;
+    return `<div class="eopcrf1-mov">${label}${tile}${actions}</div>`;
+  }
+
+  // Objective body: context strip, then Plan, Rate and Evidence cards.
   function renderObjectiveBody(kra, obj) {
     const locked = !!kra.locked;
     const timelineEmpty = !obj.timeline || !String(obj.timeline).trim();
     const actualEmpty = !obj.actualResults || !String(obj.actualResults).trim();
-    return `
-      ${renderKraSection(kra)}
-      <section class="eopcrf1-sec">
-        <h4>Planning</h4>
-        <div class="eopcrf1-facts">
-          <div class="eopcrf1-fact">
-            <span class="eopcrf1-label"><span>Timeline${reqMark(timelineEmpty)}</span><button type="button" class="eopcrf1-mini" data-action="edit-timeline">${timelineEmpty ? "Add" : "Edit"}</button></span>
-            <div class="eopcrf1-fact-value">${textOrDash(obj.timeline)}</div>
-          </div>
-          ${field("Weight allocation", escapeHtml(fmtWeight(obj.weight)))}
-          ${field("Target value", textOrDash(obj.targetValue))}
-          ${field("Target description", textOrDash(obj.targetDescription))}
-        </div>
-      </section>
-      <section class="eopcrf1-sec">
-        <h4>Performance measures and rating scale</h4>
-        ${INDICATOR_CATEGORIES.map((c) => renderCategory(obj, c, locked)).join("")}
-      </section>
-      <section class="eopcrf1-sec">
-        <h4>Evaluation</h4>
-        <div class="eopcrf1-eval">
-          <div class="eopcrf1-fact">
-            <span class="eopcrf1-label">Means of verification</span>
-            <div class="eopcrf1-box${obj.movRequired ? "" : " is-empty"}">${obj.movRequired ? escapeHtml(obj.movRequired) : "No MOVs listed for this objective."}</div>
-            <div class="eopcrf1-mov-wrap">${renderMovLink(obj)}</div>
-          </div>
-          <div class="eopcrf1-fact">
-            <span class="eopcrf1-label"><span>Actual accomplishments${reqMark(actualEmpty)}</span><button type="button" class="eopcrf1-mini" data-action="edit-actual">${actualEmpty ? "Add" : "Edit"}</button></span>
-            <div class="eopcrf1-box${actualEmpty ? " is-empty" : ""}">${actualEmpty ? "No accomplishments recorded yet." : escapeHtml(obj.actualResults)}</div>
-          </div>
-        </div>
-      </section>`;
+
+    const timelineLabel = `<span>Timeline${reqMark(timelineEmpty)}</span>${
+      timelineEmpty
+        ? ""
+        : `<button type="button" class="eopcrf1-mini" data-action="edit-timeline">Edit</button>`
+    }`;
+    const timelineValue = timelineEmpty
+      ? `<button type="button" class="eopcrf1-mini eopcrf1-mini--primary" data-action="edit-timeline">Add timeline</button>`
+      : `<span class="eopcrf1-strong">${escapeHtml(obj.timeline)}</span>`;
+    const plan = card(
+      "plan",
+      "Plan",
+      timelineEmpty ? chip("warn", "Timeline needed") : chip("ok", "Complete"),
+      `<div class="eopcrf1-plan">
+         ${kv(timelineLabel, timelineValue)}
+         ${kv(`<span>Weight</span>`, numValue(fmtWeight(obj.weight)))}
+         ${kv(`<span>Target value</span>`, numValue(obj.targetValue))}
+         ${kv(`<span>Target description</span>`, textOrDash(obj.targetDescription), "eopcrf1-kv--wide")}
+       </div>`,
+    );
+
+    const applicable = INDICATOR_CATEGORIES.filter((c) =>
+      hasDescriptors(obj, c.key),
+    );
+    const rated = applicable.filter((c) => hasVal(obj.ratings[c.key])).length;
+    const rateStatus = !applicable.length
+      ? chip("muted", "No measures yet")
+      : rated === applicable.length
+        ? chip("ok", "All rated")
+        : chip("info", `${rated} of ${applicable.length} rated`);
+    const rate = card(
+      "rate",
+      "Rate performance",
+      rateStatus,
+      INDICATOR_CATEGORIES.map((c) => renderCategory(obj, c, locked)).join(""),
+    );
+
+    const proof = card(
+      "proof",
+      "Evidence",
+      actualEmpty
+        ? chip("warn", "Accomplishments needed")
+        : chip("ok", "Complete"),
+      `<div class="eopcrf1-evidence">
+         <div class="eopcrf1-kv">
+           <div class="eopcrf1-kv-label"><span>Means of verification</span></div>
+           <div class="eopcrf1-box${obj.movRequired ? "" : " is-empty"}">${obj.movRequired ? escapeHtml(obj.movRequired) : "No MOVs listed for this objective."}</div>
+         </div>
+         <div class="eopcrf1-kv">
+           <div class="eopcrf1-kv-label"><span>Actual accomplishments${reqMark(actualEmpty)}</span><button type="button" class="eopcrf1-mini${actualEmpty ? " eopcrf1-mini--primary" : ""}" data-action="edit-actual">${actualEmpty ? "Add" : "Edit"}</button></div>
+           <div class="eopcrf1-box${actualEmpty ? " is-empty" : ""}">${actualEmpty ? "No accomplishments recorded yet." : escapeHtml(obj.actualResults)}</div>
+         </div>
+       </div>`,
+      renderMovLink(obj),
+    );
+
+    return renderKraSection(kra) + plan + rate + proof;
   }
 
   function renderEditor(kras) {
@@ -715,7 +847,7 @@
           <span class="eopcrf1-ed-actions">${edit}</span>
         </div>
         <div class="eopcrf1-ed-body">
-          ${renderKraSection(kra)}
+          ${renderKraSection(kra, true)}
           ${
             kra.locked
               ? ""
@@ -753,10 +885,27 @@
       <div class="eopcrf1-ed-body">${renderObjectiveBody(kra, obj)}</div>`;
   }
 
+  // Remember whether the user opened Program alignment, so it stays put while
+  // they rate. (The KRA-only view forces it open and is not remembered.)
+  editorEl.addEventListener(
+    "toggle",
+    (e) => {
+      const d = e.target;
+      if (
+        d.matches &&
+        d.matches(".eopcrf1-align") &&
+        !d.hasAttribute("data-forced")
+      )
+        view.alignOpen = d.open;
+    },
+    true,
+  );
+
   // ================= Render: all =================
   function render() {
     const kras = orderedKras();
     ensureSelection(kras);
+    if (id(view.movObjId) !== id(sel.objId)) view.movMode = null;
     renderProgress(kras);
     renderList(kras);
     renderEditor(kras);
@@ -873,11 +1022,9 @@
 
   function resetModalFields() {
     fieldPrimaryWrap.style.display = "none";
-    fieldUrlWrap.style.display = "none";
     fieldRateWrap.style.display = "none";
     fieldWeightWrap.style.display = "none";
     primaryInput.value = "";
-    urlInput.value = "";
     weightInput.value = "";
     rateSelect.innerHTML = "";
     setExtraFields([]);
@@ -975,11 +1122,6 @@
       primaryInput.placeholder =
         "What must be accomplished for this rating level...";
       if (isEdit && item) primaryInput.value = item.label || "";
-    } else if (ctx.mode === "edit-mov") {
-      const obj = findObjective(ctx.kraId, ctx.objId);
-      modalTitle.textContent = obj.mov ? "Edit MOV link" : "Add MOV link";
-      fieldUrlWrap.style.display = "block";
-      urlInput.value = obj.mov || "";
     } else if (ctx.mode === "edit-actual") {
       const obj = findObjective(ctx.kraId, ctx.objId);
       modalTitle.textContent = "Edit actual accomplishments";
@@ -997,10 +1139,7 @@
     }
 
     modal.style.display = "flex";
-    (fieldPrimaryWrap.style.display !== "none"
-      ? primaryInput
-      : urlInput
-    ).focus();
+    primaryInput.focus();
   }
 
   function closeModal() {
@@ -1096,16 +1235,6 @@
           modalCtx.objId,
           modalCtx.category,
           item,
-        );
-      } else if (mode === "edit-mov") {
-        const url = urlInput.value.trim();
-        if (!url) return alert("Please paste a link.");
-        upsertObjective(
-          await apiCall(
-            "POST",
-            `/irc/eopcrf1/objective/${modalCtx.objId}/mov`,
-            { url },
-          ),
         );
       } else if (mode === "edit-actual") {
         upsertObjective(
@@ -1283,6 +1412,98 @@
     render();
   }
 
+  // ---- MOV strip: re-render just the strip, never the whole editor ----
+  function renderMovOnly() {
+    const obj = findObjective(sel.kraId, sel.objId);
+    const old = editorEl.querySelector(".eopcrf1-mov");
+    if (!obj || !old) return null;
+    old.outerHTML = renderMovLink(obj);
+    return editorEl.querySelector(".eopcrf1-mov");
+  }
+
+  function setMovMode(objId, mode, focusSel, selectText) {
+    view.movObjId = objId;
+    view.movMode = mode;
+    const strip = renderMovOnly();
+    const target = strip && focusSel ? strip.querySelector(focusSel) : null;
+    if (target) {
+      target.focus();
+      if (selectText && target.select) target.select();
+    }
+  }
+
+  function showMovError(strip, msg) {
+    const err = strip.querySelector(".eopcrf1-mov-err");
+    const input = strip.querySelector(".eopcrf1-mov-input");
+    if (!err || !input) return;
+    err.textContent = msg;
+    err.hidden = !msg;
+    input.setAttribute("aria-invalid", msg ? "true" : "false");
+  }
+
+  async function setMov(objId, value) {
+    const strip = editorEl.querySelector(".eopcrf1-mov");
+    try {
+      upsertObjective(
+        await apiCall("POST", `/irc/eopcrf1/objective/${objId}/mov`, {
+          url: value,
+        }),
+      );
+    } catch (err) {
+      if (strip && strip.querySelector(".eopcrf1-mov-input"))
+        showMovError(strip, err.message);
+      else alert(err.message);
+      return;
+    }
+    setMovMode(
+      objId,
+      null,
+      value ? '[data-action="mov-edit"]' : ".eopcrf1-mov-input",
+    );
+  }
+
+  async function commitMov(objId) {
+    const strip = editorEl.querySelector(".eopcrf1-mov");
+    const input = strip && strip.querySelector(".eopcrf1-mov-input");
+    if (!input) return;
+    const res = normalizeMovUrl(input.value);
+    if (res.error) {
+      showMovError(strip, res.error);
+      input.focus();
+      return;
+    }
+    const obj = findObjective(sel.kraId, objId);
+    if (obj && res.url === obj.mov) {
+      setMovMode(objId, null, '[data-action="mov-edit"]');
+      return;
+    }
+    await setMov(objId, res.url);
+  }
+
+  editorEl.addEventListener("input", (e) => {
+    const input = e.target.closest && e.target.closest(".eopcrf1-mov-input");
+    if (!input) return;
+    const strip = input.closest(".eopcrf1-mov");
+    showMovError(strip, "");
+    if (strip.classList.contains("is-empty"))
+      strip.querySelector('[data-action="mov-save"]').disabled =
+        !input.value.trim();
+  });
+
+  editorEl.addEventListener("keydown", (e) => {
+    const input = e.target.closest && e.target.closest(".eopcrf1-mov-input");
+    if (!input) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitMov(sel.objId);
+    } else if (e.key === "Escape") {
+      const strip = input.closest(".eopcrf1-mov");
+      if (strip.classList.contains("is-empty")) return;
+      e.preventDefault();
+      setMovMode(sel.objId, null, '[data-action="mov-edit"]');
+    }
+  });
+
   workspaceEl.addEventListener("click", async (e) => {
     const el = e.target.closest("[data-action]");
     if (!el) return;
@@ -1427,20 +1648,23 @@
         }
         break;
       }
-      case "edit-mov":
-        openModal({ mode: "edit-mov", kraId, objId });
+      case "mov-save":
+        await commitMov(objId);
         break;
-      case "delete-mov":
-        try {
-          upsertObjective(
-            await apiCall("POST", `/irc/eopcrf1/objective/${objId}/mov`, {
-              url: "",
-            }),
-          );
-          render();
-        } catch (err) {
-          alert(err.message);
-        }
+      case "mov-cancel":
+        setMovMode(objId, null, '[data-action="mov-edit"]');
+        break;
+      case "mov-edit":
+        setMovMode(objId, "edit", ".eopcrf1-mov-input", true);
+        break;
+      case "mov-remove":
+        setMovMode(objId, "confirm", '[data-action="mov-remove-no"]');
+        break;
+      case "mov-remove-no":
+        setMovMode(objId, null, '[data-action="mov-remove"]');
+        break;
+      case "mov-remove-yes":
+        await setMov(objId, "");
         break;
       case "edit-actual":
         openModal({ mode: "edit-actual", kraId, objId });
@@ -1448,6 +1672,17 @@
       case "edit-timeline":
         openModal({ mode: "edit-timeline", kraId, objId });
         break;
+      case "toggle-cat": {
+        const key = el.dataset.category;
+        if (view.catOff.has(key)) view.catOff.delete(key);
+        else view.catOff.add(key);
+        render();
+        const again = editorEl.querySelector(
+          `[data-action="toggle-cat"][data-category="${key}"]`,
+        );
+        if (again) again.focus();
+        break;
+      }
       case "clear":
         confirmClearObjId = objId;
         render();
