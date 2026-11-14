@@ -160,7 +160,9 @@ class SBMSchoolInfo(db.Model):
 # ---------------------------------------------------------------------------
 # AIP -- School Annual Implementation Plan accomplishment report (Project
 # MEASURE-AIP). One AIPProject per program/project (any number, user-ordered by
-# `position`); each holds the seven parts of one row of the printed report.
+# `position`); each holds the parts of one row of the printed report (title,
+# source of fund, objective, target and accomplishment -- each with a physical
+# text and a finance amount -- gain/gap, recommendation).
 # The MOV link is on-screen only and never printed. AIPSchoolInfo is a single,
 # lazily-created row with the school details and the print header/signatories;
 # it is independent of SBM's and OPCRF I's details and untouched by AIP Reset.
@@ -171,10 +173,22 @@ class AIPProject(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     position = db.Column(db.Integer, nullable=False, default=0, server_default="0", index=True)
     title = db.Column(db.Text, nullable=False, default="", server_default="")
+    # Where the budget comes from (MOOE, SEF, LGU, donation...). Free text.
+    # NOTE: new column -- added to existing DBs by _ensure_aip_schema() in app.py.
+    source_of_fund = db.Column(db.Text, nullable=False, default="", server_default="")
     objective = db.Column(db.Text, nullable=False, default="", server_default="")
+    # `target` and `accomplishment` are the PHYSICAL parts (what was planned /
+    # done). They keep their original columns, so existing data carries over.
     target = db.Column(db.Text, nullable=False, default="", server_default="")
+    # FINANCE parts, in pesos. NULL = not entered yet (0 is a valid amount).
+    # NOTE: new columns -- added to existing DBs by _ensure_aip_schema().
+    target_finance = db.Column(db.Float, nullable=True)
     accomplishment = db.Column(db.Text, nullable=False, default="", server_default="")
+    accomplishment_finance = db.Column(db.Float, nullable=True)
     gain_gap = db.Column(db.Text, nullable=False, default="", server_default="")
+    # Structured result used by the dashboard: "gain", "gap" or "" (not chosen).
+    # NOTE: new column -- added to existing DBs by _ensure_aip_schema() in app.py.
+    gain_gap_type = db.Column(db.String(8), nullable=False, default="", server_default="")
     recommendation = db.Column(db.Text, nullable=False, default="", server_default="")
     mov_link = db.Column(db.String(2000), nullable=False, default="", server_default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -183,10 +197,14 @@ class AIPProject(db.Model):
         return {
             "id": self.id,
             "title": self.title or "",
+            "sourceOfFund": self.source_of_fund or "",
             "objective": self.objective or "",
             "target": self.target or "",
+            "targetFinance": self.target_finance,
             "accomplishment": self.accomplishment or "",
+            "accomplishmentFinance": self.accomplishment_finance,
             "gainGap": self.gain_gap or "",
+            "gainGapType": self.gain_gap_type or "",
             "recommendation": self.recommendation or "",
             "movLink": self.mov_link or "",
         }

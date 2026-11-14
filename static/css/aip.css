@@ -9,6 +9,9 @@
 .aip-drawer-overlay {
   --ap-ink: #1c2530;
   --ap-muted: #5b6676;
+  /* Placeholder text: deliberately lighter than the muted text, so it reads
+     as a quiet hint and never as filled-in content. */
+  --ap-hint: #8b95a5;
   --ap-line: #e2e6ec;
   --ap-line-strong: #c4ccd8;
   --ap-surface: #ffffff;
@@ -373,7 +376,8 @@
   border-color: var(--ap-warn-line);
 }
 .aip-mov-input::placeholder {
-  color: var(--ap-muted);
+  color: var(--ap-hint);
+  opacity: 1;
 }
 .aip-mov-input:focus {
   outline: 2px solid var(--ap-accent);
@@ -959,34 +963,54 @@ a.aip-mov-tile:hover {
 .aip-ed-body {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 18px 20px 22px;
-}
-.aip-ed-top textarea {
-  font-size: 15px;
-  font-weight: 600;
+  gap: 28px;
+  padding: 22px 24px 26px;
 }
 .aip-stage {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 .aip-stage-h {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
-  padding-bottom: 6px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--ap-line);
 }
 .aip-stage-h h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--ap-accent);
 }
-.aip-stage-h span {
+.aip-stage-h .aip-stage-note {
   font-size: 12.5px;
   color: var(--ap-muted);
+}
+/* Numbered badge in front of each group's heading. */
+.aip-stage-h .aip-stage-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ap-accent);
+  border-radius: 50%;
+}
+/* Program details: title (wide) beside the source of fund. */
+.aip-basics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+.aip-basics textarea[data-field="title"] {
+  font-size: 15px;
+  font-weight: 600;
 }
 .aip-stage-grid {
   display: grid;
@@ -1021,12 +1045,231 @@ a.aip-mov-tile:hover {
 }
 .aip-fld textarea::placeholder {
   font-weight: 400;
-  color: var(--ap-muted);
+  color: var(--ap-hint);
+  opacity: 1;
 }
-.aip-fld textarea:focus {
+.aip-fld textarea:focus,
+.aip-cmp-cell textarea:focus {
   outline: 2px solid var(--ap-accent);
   outline-offset: -1px;
   border-color: var(--ap-accent);
+}
+
+/* ---------- Plan vs actual: Target and Accomplishment side by side ----------
+   One bordered grid. Rows: Physical (text), Finance (pesos), Utilization
+   (calculated). Columns: row label, Target, Accomplishment. */
+.aip-cmp {
+  overflow: hidden;
+  border: 1px solid var(--ap-line-strong);
+  border-radius: 10px;
+}
+.aip-cmp-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr);
+  border-bottom: 1px solid var(--ap-line);
+}
+.aip-cmp-row:last-child {
+  border-bottom: 0;
+}
+.aip-cmp-head {
+  border-bottom-color: var(--ap-line-strong);
+}
+.aip-cmp-corner {
+  background: var(--ap-subtle);
+}
+.aip-cmp-col {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 16px;
+  border-left: 1px solid var(--ap-line-strong);
+}
+.aip-cmp-col strong {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.aip-cmp-col span {
+  font-size: 12.5px;
+}
+.aip-cmp-col--target {
+  color: var(--ap-accent);
+  background: var(--ap-accent-soft);
+}
+.aip-cmp-col--target span {
+  color: var(--ap-muted);
+}
+.aip-cmp-col--actual {
+  color: #fff;
+  background: var(--ap-accent);
+  border-left-color: var(--ap-accent);
+}
+.aip-cmp-col--actual span {
+  color: #c9d3ee;
+}
+.aip-cmp-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 14px;
+  background: var(--ap-subtle);
+}
+.aip-cmp-label strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ap-accent);
+}
+.aip-cmp-label span {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--ap-muted);
+}
+.aip-cmp-cell {
+  min-width: 0;
+  padding: 14px;
+  border-left: 1px solid var(--ap-line);
+}
+.aip-cmp-cell textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  line-height: 1.45;
+  color: var(--ap-ink);
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-line-strong);
+  border-radius: var(--ap-radius);
+  resize: none;
+  overflow: hidden; /* it grows instead of scrolling */
+}
+.aip-cmp-cell textarea::placeholder {
+  font-weight: 400;
+  color: var(--ap-hint);
+  opacity: 1;
+}
+
+/* Peso amount: fixed peso sign, right-aligned number, error line below. */
+.aip-money-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aip-money {
+  display: flex;
+  align-items: stretch;
+  height: 42px;
+  overflow: hidden;
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-line-strong);
+  border-radius: var(--ap-radius);
+}
+.aip-money:focus-within {
+  outline: 2px solid var(--ap-accent);
+  outline-offset: -1px;
+  border-color: var(--ap-accent);
+}
+.aip-money-wrap.is-invalid .aip-money {
+  border-color: var(--ap-danger);
+}
+/* The accomplished amount waits for a target. */
+.aip-money.is-locked {
+  background: var(--ap-subtle);
+  border-style: dashed;
+}
+.aip-money-input:disabled {
+  cursor: not-allowed;
+}
+.aip-money-cur {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ap-muted);
+  background: var(--ap-subtle);
+  border-right: 1px solid var(--ap-line-strong);
+}
+.aip-money-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ap-ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+.aip-money-input::placeholder {
+  font-weight: 400;
+  color: var(--ap-hint);
+  opacity: 1;
+}
+.aip-money-err {
+  font-size: 12.5px;
+  color: var(--ap-danger);
+}
+.aip-money-err[hidden] {
+  display: none;
+}
+
+/* Utilization row: calculated from the two finance amounts, never typed. */
+.aip-cmp-row--var {
+  grid-template-columns: 110px minmax(0, 1fr);
+  background: var(--ap-subtle);
+}
+.aip-cmp-var {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 90px;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 16px;
+  border-left: 1px solid var(--ap-line);
+}
+.aip-var-amt,
+.aip-var-pct {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.aip-var-pct {
+  text-align: right;
+}
+.aip-var-amt strong,
+.aip-var-pct strong {
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ap-accent);
+}
+.aip-var-amt span,
+.aip-var-pct span {
+  font-size: 12px;
+  color: var(--ap-muted);
+}
+.aip-var-bar {
+  height: 8px;
+  overflow: hidden;
+  background: #d5dbe6;
+  border-radius: 4px;
+}
+.aip-var-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ap-accent);
+  transition: width 0.25s ease;
+}
+.aip-var-empty {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  color: var(--ap-muted);
+}
+/* Only while a target is lowered below the accomplished amount. */
+.aip-var-empty.is-warn {
+  color: var(--ap-warn);
 }
 /* The MOV strip is the footer of the editor: it decides "complete". */
 .aip-editor .aip-mov {
@@ -1056,8 +1299,19 @@ a.aip-mov-tile:hover {
 
 /* ---------- Narrower windows: stack the side-by-side fields ---------- */
 @media (max-width: 1150px) {
-  .aip-stage-grid.aip-duo {
+  .aip-stage-grid.aip-duo,
+  .aip-basics {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .aip-cmp-row {
+    grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .aip-cmp-row--var {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+  .aip-cmp-var {
+    grid-template-columns: 140px minmax(0, 1fr) 76px;
+    gap: 14px;
   }
 }
 
@@ -1066,7 +1320,48 @@ a.aip-mov-tile:hover {
     animation: none;
   }
   .aip-seg-bar span,
-  .aip-row-bar span {
+  .aip-row-bar span,
+  .aip-var-bar span {
     transition: none;
   }
+}
+
+/* ---------- Gain | Gap choice (in the Gain/Gap label row) ---------- */
+.aip-stage-grid .aip-fl {
+  display: flex;
+  align-items: center;
+  min-height: 28px; /* keeps both text boxes level */
+}
+.aip-fl--gg {
+  justify-content: space-between;
+  gap: 8px;
+}
+.aip-gg {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--ap-line-strong);
+  border-radius: 999px;
+  background: var(--ap-surface);
+}
+.aip-gg-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.aip-gg-opt[aria-checked="true"] {
+  background: var(--ap-accent);
+  color: #fff;
+}
+.aip-gg-opt:focus-visible {
+  outline: 2px solid var(--ap-accent);
+  outline-offset: 2px;
 }

@@ -1,4 +1,6 @@
+import math
 import os
+import re
 import sys
 from datetime import datetime
 from urllib.parse import urlsplit
@@ -152,6 +154,27 @@ def _ensure_sbm_schema():
             conn.commit()
 
 
+def _ensure_aip_schema():
+    """Adds the AIP source-of-fund and finance columns to aip_projects in
+    databases created before they existed. No-op once present, and on a
+    brand-new DB where create_all() already built the table with them.
+    Existing rows keep all their data: `target` / `accomplishment` stay as the
+    physical texts, and the new finance amounts start empty (NULL)."""
+    with db.engine.connect() as conn:
+        cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(aip_projects)").fetchall()]
+        if not cols:
+            return
+        if "source_of_fund" not in cols:
+            conn.exec_driver_sql("ALTER TABLE aip_projects ADD COLUMN source_of_fund TEXT NOT NULL DEFAULT ''")
+        if "target_finance" not in cols:
+            conn.exec_driver_sql("ALTER TABLE aip_projects ADD COLUMN target_finance REAL")
+        if "accomplishment_finance" not in cols:
+            conn.exec_driver_sql("ALTER TABLE aip_projects ADD COLUMN accomplishment_finance REAL")
+        if "gain_gap_type" not in cols:
+            conn.exec_driver_sql("ALTER TABLE aip_projects ADD COLUMN gain_gap_type TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+
+
 def _ensure_eopcrf2_schema():
     """One-time, idempotent carry-over from the old IRC8b tab to EOPCRF2.
     Part II was re-based on the official form, so only the Core
@@ -202,6 +225,7 @@ def init_db_command():
         _ensure_eopcrf1_schema()
         _ensure_eopcrf2_schema()
         _ensure_sbm_schema()
+        _ensure_aip_schema()
         print(f"Database ready at {app.config['SQLALCHEMY_DATABASE_URI']}")
 
 
@@ -1315,16 +1339,55 @@ def clear_sbm_section():
 # AIP -- School Annual Implementation Plan accomplishment report
 # ===========================================================================
 AIP_TEXT_LIMIT = 10000
+AIP_MONEY_MAX = 1_000_000_000_000  # 1 trillion pesos: far above any school budget, well inside a float's exact range
 
-# JSON key -> (AIPProject column)
+# JSON key -> (AIPProject column). `target` and `accomplishment` are the
+# PHYSICAL parts; their finance amounts are in AIP_PROJECT_MONEY below.
 AIP_PROJECT_FIELDS = {
     "title": "title",
+    "sourceOfFund": "source_of_fund",
     "objective": "objective",
     "target": "target",
     "accomplishment": "accomplishment",
     "gainGap": "gain_gap",
+    "gainGapType": "gain_gap_type",
     "recommendation": "recommendation",
 }
+
+# JSON key -> AIPProject column, for amounts in pesos (null / "" = not entered).
+AIP_PROJECT_MONEY = {
+    "targetFinance": "target_finance",
+    "accomplishmentFinance": "accomplishment_finance",
+}
+
+_MONEY_RE = re.compile(r"^(\d+(\.\d*)?|\.\d+)$")
+
+
+def _clean_money(value):
+    """Returns (amount, error). None / "" means "not entered" and gives
+    (None, None). Accepts a number, or a string such as "45,000.00" or
+    "₱45000". Must be a finite amount from 0 to AIP_MONEY_MAX; it is rounded
+    to centavos."""
+    if value is None:
+        return None, None
+    if isinstance(value, bool):
+        return None, "Enter a valid amount in pesos."
+    if isinstance(value, str):
+        text = re.sub(r"[₱,\s]", "", value)
+        if text == "":
+            return None, None
+        if not _MONEY_RE.match(text):
+            return None, "Enter a valid amount in pesos."
+        amount = float(text)
+    elif isinstance(value, (int, float)):
+        amount = float(value)
+    else:
+        return None, "Enter a valid amount in pesos."
+    if not math.isfinite(amount) or amount < 0:
+        return None, "Enter a valid amount in pesos, zero or more."
+    if amount > AIP_MONEY_MAX:
+        return None, "That amount is too large."
+    return round(amount, 2), None
 
 # JSON key -> (AIPSchoolInfo column, max length, store in capitals)
 AIP_INFO_FIELDS = {
@@ -1370,6 +1433,26 @@ def _apply_aip_project_fields(project, data):
         if len(value) > AIP_TEXT_LIMIT:
             return f"'{key}' is too long (max {AIP_TEXT_LIMIT} characters)"
         cleaned[column] = value
+    if cleaned.get("gain_gap_type", "") not in ("", "gain", "gap"):
+        return "'gainGapType' must be 'gain', 'gap' or empty"
+    for key, column in AIP_PROJECT_MONEY.items():
+        if key not in data:
+            continue
+        amount, err = _clean_money(data.get(key))
+        if err:
+            return err
+        cleaned[column] = amount
+    # The accomplished amount can never be more than the target. Checked on
+    # the values the project will have after this update, so a partial body
+    # (only one of the two) is compared against the one already stored.
+    if "target_finance" in cleaned or "accomplishment_finance" in cleaned:
+        target_fin = cleaned.get("target_finance", project.target_finance)
+        done_fin = cleaned.get("accomplishment_finance", project.accomplishment_finance)
+        if done_fin is not None:
+            if target_fin is None:
+                return "Enter the target finance amount first."
+            if done_fin > target_fin:
+                return "The accomplished finance amount can't be more than the target."
     if "movLink" in data:
         link, err = _clean_mov_link(data["movLink"])
         if err:
@@ -1492,4 +1575,5 @@ if __name__ == "__main__":
         _ensure_eopcrf1_schema()
         _ensure_eopcrf2_schema()
         _ensure_sbm_schema()
+        _ensure_aip_schema()
     app.run(debug=True)

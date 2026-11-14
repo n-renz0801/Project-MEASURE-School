@@ -1,9 +1,10 @@
 /* AIP - School Annual Implementation Plan accomplishment report.
-   The user builds any number of program/projects (title, objective, target,
-   accomplishment, gain/gap, recommendation, MOV link), reorders them by
-   dragging, and prints them in the layout of the school's AIP report. Data is
-   saved through the /aip/* routes in app.py. The MOV link is on-screen only
-   and is never printed. */
+   The user builds any number of program/projects (title, source of fund,
+   objective, target and accomplishment -- each with a physical text and a
+   finance amount in pesos -- gain/gap, recommendation, MOV link), reorders
+   them by dragging, and prints them in the layout of the school's AIP report.
+   Data is saved through the /aip/* routes in app.py. The MOV link is on-screen
+   only and is never printed. */
 (function () {
   "use strict";
 
@@ -18,62 +19,61 @@
   const workspaceEl = el("aip-workspace");
   const errorEl = el("aip-error-state");
 
-  // The parts of a program/project, in the order they read on the printed
-  // report: title, then Plan (objective, target), Result (accomplishment,
-  // gain/gap) and Next steps (recommendation). The MOV link has its own strip
-  // at the bottom of the editor. `hint` is the placeholder shown when empty.
+  // The parts of a program/project. The editor groups them as: Program details
+  // (title, source of fund), Plan vs actual (objective, then a grid comparing
+  // Target with Accomplishment, each as Physical text + Finance amount) and
+  // Analysis and next steps (gain/gap, recommendation). The MOV link has its
+  // own strip at the bottom. `hint` is the placeholder shown when empty.
+  // `target` and `accomplishment` are the PHYSICAL texts; the finance amounts
+  // are `targetFinance` / `accomplishmentFinance` (text while editing, e.g.
+  // "45,000.00"; the server stores them as numbers).
   const FIELDS = {
     title: {
       label: "Program/Project title",
-      rows: 2,
-      hint: "Title of the program or project",
+      rows: 3,
+      hint: "Program or project title",
+    },
+    sourceOfFund: {
+      label: "Source of fund",
+      rows: 3,
+      hint: "Where the budget comes from",
     },
     objective: {
       label: "Objective",
-      rows: 4,
-      hint: "What should this program/project achieve?",
+      rows: 2,
+      hint: "What it should achieve",
     },
     target: {
-      label: "Target",
-      rows: 4,
-      hint: "What was planned: figures, activities, schedule",
+      label: "Target (physical)",
+      rows: 5,
+      hint: "What was planned",
     },
+    targetFinance: { label: "Target (finance)", money: true },
     accomplishment: {
-      label: "Accomplishment",
-      rows: 4,
-      hint: "What was actually done or achieved",
+      label: "Accomplishment (physical)",
+      rows: 5,
+      hint: "What was actually done",
     },
+    accomplishmentFinance: { label: "Accomplishment (finance)", money: true },
     gainGap: {
       label: "Gain/Gap",
       rows: 4,
-      hint: "How the accomplishment compares with the target",
+      hint: "How the result compares with the plan",
     },
+    // Structured Gain / Gap choice (the dashboard counts these). The free-text
+    // `gainGap` above stays as the explanation.
+    gainGapType: { label: "Gain or gap" },
     recommendation: {
       label: "Recommendation",
-      rows: 3,
-      hint: "What should be done next, or what needs support",
+      rows: 4,
+      hint: "What should happen next",
     },
   };
-  const STAGES = [
-    {
-      name: "Plan",
-      note: "What it set out to do",
-      keys: ["objective", "target"],
-    },
-    {
-      name: "Result",
-      note: "What came out of it",
-      keys: ["accomplishment", "gainGap"],
-    },
-    {
-      name: "Next steps",
-      note: "What should follow",
-      keys: ["recommendation"],
-    },
-  ];
+  const MONEY_KEYS = ["targetFinance", "accomplishmentFinance"];
+  const PESO = "₱";
 
   const state = {
-    projects: [], // [{ id, title, objective, target, accomplishment, gainGap, recommendation, movLink }]
+    projects: [], // [{ id, title, sourceOfFund, objective, target, targetFinance, accomplishment, accomplishmentFinance, gainGap, recommendation, movLink }]
     selectedId: null,
     movMode: null, // null | "edit" | "confirm" for the selected project
     confirmDelete: false,
@@ -128,19 +128,65 @@
     return byId(state.selectedId);
   }
 
-  // Every part is required: the five text fields plus the MOV link. These
-  // helpers drive the list, the progress segments and the status chip.
+  // ---- Money (pesos) ----
+  // Finance fields are typed as text ("45000", "45,000.50") and shown as
+  // "45,000.50" once the field is left. parseMoney: null = empty, NaN =
+  // not a valid amount, otherwise the number rounded to centavos.
+  const MONEY_MAX = 1e12;
+  function parseMoney(s) {
+    const t = String(s == null ? "" : s).replace(/[₱,\s]/g, "");
+    if (t === "") return null;
+    if (!/^(\d+(\.\d*)?|\.\d+)$/.test(t)) return NaN;
+    const n = Math.round(parseFloat(t) * 100) / 100;
+    return n > MONEY_MAX ? NaN : n;
+  }
+  function formatMoney(n) {
+    return n.toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  const moneyToText = (n) => (n == null ? "" : formatMoney(n));
+
+  // Every part is required: the text fields, both finance amounts (0 counts as
+  // filled) and the MOV link. These helpers drive the list, the progress
+  // segments and the status chip.
   const REQUIRED = [
     "title",
+    "sourceOfFund",
     "objective",
     "target",
+    "targetFinance",
     "accomplishment",
+    "accomplishmentFinance",
     "gainGap",
+    "gainGapType",
     "recommendation",
   ];
   const PART_TOTAL = REQUIRED.length + 1; // + the MOV link
+  function isFilled(p, k) {
+    if (FIELDS[k].money) return Number.isFinite(parseMoney(p[k]));
+    return !!String(p[k] || "").trim();
+  }
+  // Rebuilds a project from what the server sends (finance as numbers).
+  function projectFromServer(p) {
+    return {
+      id: p.id,
+      title: p.title || "",
+      sourceOfFund: p.sourceOfFund || "",
+      objective: p.objective || "",
+      target: p.target || "",
+      targetFinance: moneyToText(p.targetFinance),
+      accomplishment: p.accomplishment || "",
+      accomplishmentFinance: moneyToText(p.accomplishmentFinance),
+      gainGap: p.gainGap || "",
+      gainGapType: p.gainGapType || "",
+      recommendation: p.recommendation || "",
+      movLink: p.movLink || "",
+    };
+  }
   function missingParts(p) {
-    const miss = REQUIRED.filter((k) => !String(p[k] || "").trim()).map(
+    const miss = REQUIRED.filter((k) => !isFilled(p, k)).map(
       (k) => FIELDS[k].label,
     );
     if (!p.movLink) miss.push("MOV link");
@@ -202,7 +248,7 @@
       return `
         <div class="aip-mov${link ? "" : " is-missing"}">
           <input type="text" inputmode="url" class="aip-mov-input" value="${escapeHtml(link)}"
-                 placeholder="Paste your MOV link here (required)" autocomplete="off" spellcheck="false"
+                 placeholder="Paste the MOV link" autocomplete="off" spellcheck="false"
                  aria-label="MOV link for this program/project" />
           <button type="button" class="aip-mov-btn aip-mov-btn--primary aip-mov-save" ${link ? "" : "disabled"}>${link ? "Save" : "Attach"}</button>
           ${link ? '<button type="button" class="aip-mov-btn aip-mov-cancel">Cancel</button>' : ""}
@@ -315,31 +361,149 @@
   }
 
   // ================= editor (right) =================
-  function fieldHtml(p, key) {
+  function areaHtml(p, key, ariaLabel) {
     const f = FIELDS[key];
+    return `<textarea rows="${f.rows}" data-field="${key}" placeholder="${escapeHtml(f.hint)}"${ariaLabel ? ` aria-label="${escapeHtml(ariaLabel)}"` : ""} style="min-height:calc(${f.rows} * 1.45em + 18px)">${escapeHtml(p[key])}</textarea>`;
+  }
+
+  function fieldHtml(p, key) {
     return `
       <label class="aip-fld">
-        <span class="aip-fl">${f.label}</span>
-        <textarea rows="${f.rows}" data-field="${key}" placeholder="${escapeHtml(f.hint)}" style="min-height:calc(${f.rows} * 1.45em + 18px)">${escapeHtml(p[key])}</textarea>
+        <span class="aip-fl">${FIELDS[key].label}</span>
+        ${areaHtml(p, key)}
       </label>`;
   }
 
-  // Title on top, then one block per stage. A stage with two fields shows them
-  // side by side at the same height, so the form reads left to right and top
-  // to bottom like the columns of the printed report.
+  // Gain/Gap: a Gain | Gap choice in the label row, then the explanation box.
+  // Clicking the chosen option again clears it.
+  function gainGapHtml(p) {
+    const opt = (v, icon, text) =>
+      `<button type="button" role="radio" class="aip-gg-opt" data-gg="${v}" aria-checked="${p.gainGapType === v}"><i class="ti ${icon}" aria-hidden="true"></i> ${text}</button>`;
+    return `
+      <div class="aip-fld">
+        <div class="aip-fl aip-fl--gg">
+          <span>${FIELDS.gainGap.label}</span>
+          <span class="aip-gg" role="radiogroup" aria-label="Result: gain or gap">${opt("gain", "ti-trending-up", "Gain")}${opt("gap", "ti-trending-down", "Gap")}</span>
+        </div>
+        ${areaHtml(p, "gainGap", "Gain/Gap explanation")}
+      </div>`;
+  }
+
+  // A peso amount: a fixed peso sign, a right-aligned number, and a small
+  // error line that only shows for an invalid amount.
+  // The accomplished amount can never be more than the target, so it stays
+  // locked until a target is entered (see syncFinanceLock) and refuses
+  // anything above it (see the input handler). `data-good` remembers the last
+  // accepted text, so a refused edit can be put back.
+  function moneyHtml(p, key) {
+    const locked =
+      key === "accomplishmentFinance" &&
+      !Number.isFinite(parseMoney(p.targetFinance));
+    return `
+      <div class="aip-money-wrap">
+        <span class="aip-money${locked ? " is-locked" : ""}">
+          <span class="aip-money-cur" aria-hidden="true">${PESO}</span>
+          <input type="text" inputmode="decimal" autocomplete="off" class="aip-money-input"
+                 data-field="${key}" data-money="1" data-good="${escapeHtml(p[key])}" value="${escapeHtml(p[key])}" placeholder="Amount"
+                 aria-label="${escapeHtml(FIELDS[key].label)} in pesos"${locked ? " disabled" : ""} />
+        </span>
+        <span class="aip-money-err" role="alert" hidden></span>
+      </div>`;
+  }
+
+  // Locks the accomplished amount while there is no target to compare with.
+  function syncFinanceLock() {
+    const p = selected();
+    const input = editorEl.querySelector(
+      'input[data-field="accomplishmentFinance"]',
+    );
+    if (!p || !input) return;
+    const locked = !Number.isFinite(parseMoney(p.targetFinance));
+    input.disabled = locked;
+    input.closest(".aip-money").classList.toggle("is-locked", locked);
+  }
+
+  // How much of the target has been used. Calculated from the two finance
+  // amounts; never stored. The accomplished amount cannot exceed the target.
+  function utilizationHtml(p) {
+    const t = parseMoney(p.targetFinance);
+    const a = parseMoney(p.accomplishmentFinance);
+    if (!Number.isFinite(t))
+      return `<span class="aip-var-empty">Enter the target amount first.</span>`;
+    if (!Number.isFinite(a))
+      return `<span class="aip-var-empty">Enter the accomplished amount to see how much of the target was used.</span>`;
+    if (a > t)
+      return `<span class="aip-var-empty is-warn">The accomplished amount is more than the target. Raise the target or lower the accomplishment.</span>`;
+    const left = Math.round((t - a) * 100) / 100;
+    const pct = t > 0 ? (a / t) * 100 : null;
+    return `
+      <div class="aip-var-amt"><strong>${PESO}${formatMoney(left)}</strong><span>unspent</span></div>
+      <div class="aip-var-bar" aria-hidden="true"><span style="width:${pct == null ? 0 : pct}%"></span></div>
+      <div class="aip-var-pct"><strong>${pct == null ? "—" : pct.toFixed(1) + "%"}</strong><span>utilized</span></div>`;
+  }
+
+  function refreshUtilization() {
+    const p = selected();
+    const box = el("aip-var-body");
+    if (p && box) box.innerHTML = utilizationHtml(p);
+  }
+
+  function stageHead(n, name, note) {
+    return `<div class="aip-stage-h"><span class="aip-stage-n" aria-hidden="true">${n}</span><h4>${name}</h4><span class="aip-stage-note">${note}</span></div>`;
+  }
+
+  function rowLabel(name, note) {
+    return `<div class="aip-cmp-label"><strong>${name}</strong><span>${note}</span></div>`;
+  }
+
+  // Three groups: Program details, Plan vs actual and Analysis and next steps.
+  // In Plan vs actual the Target and Accomplishment columns sit side by side,
+  // so each row (Physical, Finance, Utilization) compares them directly, like the
+  // printed report. Side-by-side text boxes share one height (see autosize).
   function bodyHtml(p) {
     return `
       <div class="aip-ed-body">
-        <div class="aip-ed-top">${fieldHtml(p, "title")}</div>
-        ${STAGES.map(
-          (s) => `
-          <section class="aip-stage">
-            <div class="aip-stage-h"><h4>${s.name}</h4><span>${s.note}</span></div>
-            <div class="aip-stage-grid${s.keys.length > 1 ? " aip-duo" : ""}">
-              ${s.keys.map((k) => fieldHtml(p, k)).join("")}
+        <section class="aip-stage">
+          ${stageHead(1, "Program details", "What it is and where the money comes from")}
+          <div class="aip-basics aip-duo">
+            ${fieldHtml(p, "title")}
+            ${fieldHtml(p, "sourceOfFund")}
+          </div>
+        </section>
+
+        <section class="aip-stage">
+          ${stageHead(2, "Plan vs actual", "Each row compares the target with what was accomplished")}
+          ${fieldHtml(p, "objective")}
+          <div class="aip-cmp" role="group" aria-label="Target compared with accomplishment">
+            <div class="aip-cmp-row aip-cmp-head">
+              <div class="aip-cmp-corner"></div>
+              <div class="aip-cmp-col aip-cmp-col--target"><strong>TARGET</strong><span>Planned</span></div>
+              <div class="aip-cmp-col aip-cmp-col--actual"><strong>ACCOMPLISHMENT</strong><span>Actually done</span></div>
             </div>
-          </section>`,
-        ).join("")}
+            <div class="aip-cmp-row aip-duo">
+              ${rowLabel("Physical", "Quantities, activities")}
+              <div class="aip-cmp-cell">${areaHtml(p, "target", FIELDS.target.label)}</div>
+              <div class="aip-cmp-cell">${areaHtml(p, "accomplishment", FIELDS.accomplishment.label)}</div>
+            </div>
+            <div class="aip-cmp-row">
+              ${rowLabel("Finance", "Amount in pesos")}
+              <div class="aip-cmp-cell">${moneyHtml(p, "targetFinance")}</div>
+              <div class="aip-cmp-cell">${moneyHtml(p, "accomplishmentFinance")}</div>
+            </div>
+            <div class="aip-cmp-row aip-cmp-row--var">
+              ${rowLabel("Utilization", "Calculated")}
+              <div class="aip-cmp-var" id="aip-var-body">${utilizationHtml(p)}</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="aip-stage">
+          ${stageHead(3, "Analysis and next steps", "What it means and what should follow")}
+          <div class="aip-stage-grid aip-duo">
+            ${gainGapHtml(p)}
+            ${fieldHtml(p, "recommendation")}
+          </div>
+        </section>
       </div>`;
   }
 
@@ -452,8 +616,21 @@
     delete saveTimers[key];
     const p = byId(id);
     if (!p) return;
+    let value = p[field];
+    if (MONEY_KEYS.includes(field)) {
+      // Finance goes to the server as a number (null = empty). An invalid
+      // amount is never sent; the field shows its own error instead.
+      value = parseMoney(value);
+      if (Number.isNaN(value)) return;
+      // The server refuses a target below the accomplished amount; do not
+      // send one while the user is still typing towards the final figure.
+      if (field === "targetFinance") {
+        const done = parseMoney(p.accomplishmentFinance);
+        if (Number.isFinite(done) && (value === null || value < done)) return;
+      }
+    }
     try {
-      await apiCall("POST", "/aip/project/" + id, { [field]: p[field] });
+      await apiCall("POST", "/aip/project/" + id, { [field]: value });
       setStatus("");
     } catch (err) {
       setStatus(err.message);
@@ -474,18 +651,103 @@
     await Promise.all(pending);
   }
 
+  // ---- Finance inputs ----
+  function showMoneyError(input, msg) {
+    const wrap = input.closest(".aip-money-wrap");
+    const err = wrap && wrap.querySelector(".aip-money-err");
+    if (!err) return;
+    err.textContent = msg;
+    err.hidden = !msg;
+    wrap.classList.toggle("is-invalid", !!msg);
+    input.setAttribute("aria-invalid", msg ? "true" : "false");
+  }
+
+  // On leaving a finance field: tidy it to "45,000.00" and save it. An
+  // invalid amount is flagged and not saved.
+  function commitMoney(p, input) {
+    const key = input.dataset.field;
+    const timerKey = p.id + ":" + key;
+    const n = parseMoney(input.value);
+    if (Number.isNaN(n)) {
+      clearTimeout(saveTimers[timerKey]);
+      delete saveTimers[timerKey];
+      showMoneyError(input, "Enter a valid amount.");
+      return;
+    }
+    // A target may not end up below what was already accomplished: put the
+    // last accepted amount back instead of saving it.
+    if (key === "targetFinance") {
+      const done = parseMoney(p.accomplishmentFinance);
+      if (Number.isFinite(done) && (n === null || n < done)) {
+        clearTimeout(saveTimers[timerKey]);
+        delete saveTimers[timerKey];
+        input.value = input.dataset.good || "";
+        p[key] = input.value;
+        showMoneyError(
+          input,
+          "The target can’t be lower than the accomplished " +
+            PESO +
+            formatMoney(done) +
+            ".",
+        );
+        syncFinanceLock();
+        refreshUtilization();
+        renderList();
+        return;
+      }
+    }
+    const text = n === null ? "" : formatMoney(n);
+    const changed = p[key] !== text;
+    input.value = text;
+    p[key] = text;
+    input.dataset.good = text;
+    showMoneyError(input, "");
+    if (changed || saveTimers[timerKey] !== undefined) saveField(p.id, key);
+    syncFinanceLock();
+    refreshUtilization();
+    renderList();
+  }
+
   editorEl.addEventListener("input", (e) => {
-    const ta = e.target.closest("textarea[data-field]");
+    const ta = e.target.closest("textarea[data-field], input[data-field]");
     if (ta) {
       const p = selected();
       if (!p) return;
+      const key = ta.dataset.field;
+      if (ta.dataset.money) {
+        // Digits, commas and a decimal point only.
+        const clean = ta.value.replace(/[^\d.,]/g, "");
+        // The accomplished amount may not go above the target: refuse the
+        // edit and keep what was there.
+        if (key === "accomplishmentFinance") {
+          const cap = parseMoney(p.targetFinance);
+          const typed = parseMoney(clean);
+          if (Number.isFinite(cap) && Number.isFinite(typed) && typed > cap) {
+            ta.value = p[key];
+            showMoneyError(
+              ta,
+              "Can’t be more than the target of " +
+                PESO +
+                formatMoney(cap) +
+                ".",
+            );
+            return;
+          }
+        }
+        if (clean !== ta.value) ta.value = clean;
+        showMoneyError(ta, "");
+      }
       const before = filledCount(p);
-      p[ta.dataset.field] = ta.value;
-      autosize(ta);
-      scheduleSave(p.id, ta.dataset.field);
+      p[key] = ta.value;
+      if (ta.tagName === "TEXTAREA") autosize(ta);
+      scheduleSave(p.id, key);
+      if (ta.dataset.money) {
+        syncFinanceLock();
+        refreshUtilization();
+      }
       // The list, progress and chip follow what is filled in, so refresh them
       // when the title text changes or a field goes from empty to filled.
-      if (ta.dataset.field === "title" || filledCount(p) !== before) {
+      if (key === "title" || filledCount(p) !== before) {
         renderList();
         refreshHead();
       }
@@ -503,9 +765,15 @@
   editorEl.addEventListener(
     "blur",
     (e) => {
-      const ta = e.target.closest && e.target.closest("textarea[data-field]");
+      const ta =
+        e.target.closest &&
+        e.target.closest("textarea[data-field], input[data-field]");
       const p = selected();
-      if (ta && p && saveTimers[p.id + ":" + ta.dataset.field] !== undefined)
+      // A field removed by a re-render (switching program/project) must not
+      // write its old value into the newly selected one.
+      if (!ta || !p || !ta.isConnected) return;
+      if (ta.dataset.money) return commitMoney(p, ta);
+      if (saveTimers[p.id + ":" + ta.dataset.field] !== undefined)
         saveField(p.id, ta.dataset.field);
     },
     true,
@@ -610,6 +878,25 @@
     const p = selected();
     if (!p) return;
     if (e.target.closest(".aip-mov")) return handleMovClick(p, e);
+    const gg = e.target.closest("[data-gg]");
+    if (gg) {
+      const before = filledCount(p);
+      p.gainGapType = p.gainGapType === gg.dataset.gg ? "" : gg.dataset.gg;
+      gg.closest(".aip-gg")
+        .querySelectorAll("[data-gg]")
+        .forEach((b) =>
+          b.setAttribute(
+            "aria-checked",
+            String(b.dataset.gg === p.gainGapType),
+          ),
+        );
+      saveField(p.id, "gainGapType");
+      if (filledCount(p) !== before) {
+        renderList();
+        refreshHead();
+      }
+      return;
+    }
     const act = e.target.closest("[data-act]");
     if (!act) return;
     const what = act.dataset.act;
@@ -644,16 +931,7 @@
   async function addProject() {
     try {
       const created = await apiCall("POST", "/aip/project", {});
-      state.projects.push({
-        id: created.id,
-        title: created.title || "",
-        objective: created.objective || "",
-        target: created.target || "",
-        accomplishment: created.accomplishment || "",
-        gainGap: created.gainGap || "",
-        recommendation: created.recommendation || "",
-        movLink: created.movLink || "",
-      });
+      state.projects.push(projectFromServer(created));
       setStatus("");
       select(created.id, true);
     } catch (err) {
@@ -697,18 +975,24 @@
         delete saveTimers[k];
       }
     });
+    // What the server gets (finance: null = empty) and what the editor holds
+    // (finance as empty text).
     const blank = {
       title: "",
+      sourceOfFund: "",
       objective: "",
       target: "",
+      targetFinance: null,
       accomplishment: "",
+      accomplishmentFinance: null,
       gainGap: "",
+      gainGapType: "",
       recommendation: "",
       movLink: "",
     };
     try {
       await apiCall("POST", "/aip/project/" + p.id, blank);
-      Object.assign(p, blank);
+      Object.assign(p, blank, { targetFinance: "", accomplishmentFinance: "" });
       state.movMode = null;
       state.confirmClear = false;
       renderList();
@@ -1052,15 +1336,43 @@
     const rows = state.projects.length
       ? state.projects
           .map((p) => {
+            // Physical text, then "Finance: ₱x" when an amount was entered.
+            // With a finance line the physical text is labelled too.
+            const withFinance = (physical, finance) => {
+              const n = parseMoney(finance);
+              const amount = Number.isFinite(n)
+                ? "Finance: " + PESO + formatMoney(n)
+                : "";
+              const text = physical.trim();
+              return [text && amount ? "Physical: " + text : text, amount]
+                .filter(Boolean)
+                .join("\n\n");
+            };
             // The objective sits at the top of the Target cell, then a blank line.
-            const target = [p.objective.trim(), p.target.trim()]
+            const target = [
+              p.objective.trim(),
+              withFinance(p.target, p.targetFinance),
+            ]
+              .filter(Boolean)
+              .join("\n\n");
+            const accomplishment = withFinance(
+              p.accomplishment,
+              p.accomplishmentFinance,
+            );
+            // The source of fund goes under the title.
+            const title = [
+              p.title.trim(),
+              p.sourceOfFund.trim()
+                ? "Source of fund: " + p.sourceOfFund.trim()
+                : "",
+            ]
               .filter(Boolean)
               .join("\n\n");
             return `
               <tr class="ap-row">
-                <td>${pre(p.title)}</td>
+                <td>${pre(title)}</td>
                 <td>${pre(target)}</td>
-                <td>${pre(p.accomplishment)}</td>
+                <td>${pre(accomplishment)}</td>
                 <td>${pre(p.gainGap)}</td>
                 <td>${pre(p.recommendation)}</td>
               </tr>
@@ -1130,16 +1442,7 @@
     try {
       const data = await apiCall("GET", "/aip/data");
       fillInfo(data.info || {});
-      state.projects = (data.projects || []).map((p) => ({
-        id: p.id,
-        title: p.title || "",
-        objective: p.objective || "",
-        target: p.target || "",
-        accomplishment: p.accomplishment || "",
-        gainGap: p.gainGap || "",
-        recommendation: p.recommendation || "",
-        movLink: p.movLink || "",
-      }));
+      state.projects = (data.projects || []).map(projectFromServer);
       state.selectedId = state.projects.length ? state.projects[0].id : null;
       renderList();
       renderEditor();
