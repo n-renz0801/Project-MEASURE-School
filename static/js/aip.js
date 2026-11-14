@@ -12,6 +12,7 @@
   const listEl = el("aip-list");
   const editorEl = el("aip-editor");
   const progressCountEl = el("aip-progress-count");
+  const navCountEl = el("aip-nav-count");
   const segsEl = el("aip-segments");
   const nextBtn = el("aip-next-incomplete");
   const doneBadge = el("aip-done-badge");
@@ -299,14 +300,12 @@
     return `
       <div class="aip-row${p.id === state.selectedId ? " is-active" : ""}${isDone ? " is-complete" : ""}" role="listitem" data-id="${p.id}">
         <button type="button" class="aip-row-main" aria-current="${p.id === state.selectedId}">
-          <span class="aip-row-top">
-            <span class="aip-row-text">
-              ${cat ? `<span class="aip-row-cat">${escapeHtml(cat)}</span>` : ""}
-              <span class="aip-row-name${name ? "" : " is-empty"}">${name ? escapeHtml(name) : "Untitled program/project"}</span>
-            </span>
-            <span class="aip-row-count"${still}>${isDone ? '<i class="ti ti-circle-check-filled" aria-hidden="true"></i>' : ""}${n}/${PART_TOTAL}</span>
+          <span class="aip-nv-badge${isDone ? " is-done" : ""}" aria-hidden="true">${index + 1}</span>
+          <span class="aip-row-text">
+            ${cat ? `<span class="aip-row-cat">${escapeHtml(cat)}</span>` : ""}
+            <span class="aip-row-name${name ? "" : " is-empty"}">${name ? escapeHtml(name) : "Untitled program/project"}</span>
           </span>
-          <span class="aip-row-bar" aria-hidden="true"><span style="width:${(n / PART_TOTAL) * 100}%"></span></span>
+          <span class="aip-row-count"${still}><b>${n}/${PART_TOTAL}</b><small>filled</small></span>
         </button>
         <button type="button" class="aip-grip" aria-label="Reorder program/project ${index + 1}. Drag, or press the up and down arrow keys."
                 title="Drag to reorder"><i class="ti ti-grip-vertical" aria-hidden="true"></i></button>
@@ -357,6 +356,13 @@
 
   function renderList() {
     listEl.innerHTML = state.projects.map(rowHtml).join("");
+    if (navCountEl) {
+      const total = state.projects.length;
+      const done = state.projects.filter(isComplete).length;
+      navCountEl.textContent = total
+        ? `${done} of ${total} complete`
+        : "No entries yet";
+    }
     renderProgress();
   }
 

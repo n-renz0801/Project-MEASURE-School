@@ -66,9 +66,20 @@ endblock %} {% block content %}
 
   <div id="aip-workspace" class="aip-workspace">
     <div class="aip-nav-col">
-      <button type="button" class="aip-add-btn" id="aip-add-btn">
-        <i class="ti ti-plus" aria-hidden="true"></i> Add program/project
-      </button>
+      <div class="aip-nv-head">
+        <div class="aip-nv-sub">Programs and projects</div>
+        <div class="aip-nv-headrow">
+          <b id="aip-nav-count">No entries yet</b>
+          <button
+            type="button"
+            class="aip-btn aip-btn--primary aip-nv-sm"
+            id="aip-add-btn"
+            aria-label="Add program/project"
+          >
+            <i class="ti ti-plus" aria-hidden="true"></i> Add new
+          </button>
+        </div>
+      </div>
       <!-- A div, not <nav>: base.css styles bare nav/header elements. -->
       <div
         id="aip-list"

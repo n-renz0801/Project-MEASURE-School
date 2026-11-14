@@ -239,21 +239,51 @@
     doneBadge.hidden = !complete;
   }
 
+  // Same layout as OPCRF I: a header, then one group per dimension. The open
+  // dimension lists its indicators on a rail (click one to jump to its card).
   function renderNav() {
-    navEl.innerHTML = DIMENSIONS.map((dim, i) => {
-      const done = answeredIn(dim);
-      const total = dim.items.length;
-      const isDone = done === total;
-      return `
-        <button type="button" class="sbm-nav-item${i === state.active ? " is-active" : ""}${isDone ? " is-complete" : ""}"
-                data-dim="${i}" ${i === state.active ? 'aria-current="true"' : ""}>
-          <span class="sbm-nav-top">
-            <span class="sbm-nav-name">${escapeHtml(dim.name)}</span>
-            <span class="sbm-nav-count">${isDone ? '<i class="ti ti-circle-check-filled" aria-hidden="true"></i>' : ""}${done}/${total}</span>
-          </span>
-          <span class="sbm-nav-bar" aria-hidden="true"><span style="width:${(done / total) * 100}%"></span></span>
+    const done = answeredTotal();
+    let html = `<div class="sbm-nv-head"><div class="sbm-nv-sub">SBM Dimensions</div><div class="sbm-nv-headrow"><b>${done} of ${TOTAL} indicators done</b></div></div><div class="sbm-nv-kras">`;
+    DIMENSIONS.forEach((dim, i) => {
+      const d = answeredIn(dim);
+      const t = dim.items.length;
+      const open = i === state.active;
+      html += `
+        <div class="sbm-nv-group${open ? " is-open" : ""}">
+        <button type="button" class="sbm-nv-kra${open ? " is-open" : ""}" data-action="select-dim" data-dim="${i}" aria-expanded="${open}"${open ? ' aria-current="true"' : ""} title="${escapeHtml(dim.name)}" aria-label="${escapeHtml(dim.name)}, ${d} of ${t} indicators complete">
+          <span class="sbm-nv-badge${d === t ? " is-done" : ""}" aria-hidden="true">${i + 1}</span>
+          <span class="sbm-nv-kra-name">${escapeHtml(dim.name)}</span>
+          <span class="sbm-nv-kra-w" title="Indicators complete"><b>${d}/${t}</b><small>done</small></span>
         </button>`;
-    }).join("");
+      if (open) {
+        html += '<div class="sbm-nv-rail">';
+        dim.items.forEach((it) => {
+          const r = resp(it.n);
+          const state_ = isComplete(it.n)
+            ? "done"
+            : r.degree || r.movLink
+              ? "partial"
+              : "";
+          const deg = DEGREES.find((x) => x.key === r.degree);
+          const need = [];
+          if (!r.degree) need.push("degree");
+          if (!r.movLink) need.push("MOV link");
+          const tip = need.length
+            ? `Still needed: ${need.join(", ")}`
+            : "Complete";
+          html += `
+          <button type="button" class="sbm-nv-obj" data-action="goto-card" data-n="${it.n}" title="${tip}">
+            <i class="sbm-nv-dot${state_ ? " is-" + state_ : ""}" aria-hidden="true"></i>
+            <span class="sbm-nv-obj-name">Indicator ${it.n}</span>
+            <span class="sbm-nv-obj-meta">${deg ? escapeHtml(deg.short) : "&mdash;"}</span>
+          </button>`;
+        });
+        html += "</div>";
+      }
+      html += "</div>";
+    });
+    html += "</div>";
+    navEl.innerHTML = html;
   }
 
   function optionsHtml(n, selected) {
@@ -485,8 +515,24 @@
   });
 
   navEl.addEventListener("click", (e) => {
-    const btn = e.target.closest(".sbm-nav-item");
-    if (btn) goToDimension(Number(btn.dataset.dim));
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    if (btn.dataset.action === "select-dim") {
+      goToDimension(Number(btn.dataset.dim));
+    } else if (btn.dataset.action === "goto-card") {
+      const card = el("sbm-card-" + btn.dataset.n);
+      if (!card) return;
+      const calm = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      card.scrollIntoView({
+        block: "center",
+        behavior: calm ? "auto" : "smooth",
+      });
+      card.classList.remove("is-flash");
+      void card.offsetWidth; // restart the highlight animation
+      card.classList.add("is-flash");
+    }
   });
 
   const saveTimers = {};

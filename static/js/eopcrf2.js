@@ -331,46 +331,111 @@
     progressCountEl.innerHTML = `<strong>${done} of ${total}</strong><span>complete</span>`;
     segsEl.setAttribute("aria-valuemax", String(total));
     segsEl.setAttribute("aria-valuenow", String(done));
-    segsEl.innerHTML = ORDER.map((o) => {
-      const p = subProgress(o.sub.key);
-      return `
-        <button type="button" class="eopcrf2-seg${o.sub.key === sel.subKey ? " is-active" : ""}${p.complete ? " is-complete" : ""}"
-                data-sub="${o.sub.key}" title="${escapeAttr(o.sub.title)}: ${p.done} of ${p.total} rated">
+    // One group per Part (II-A, II-B); the first segment of a group carries the Part code.
+    segsEl.innerHTML = DATA.map((section) => {
+      const meta = PART_SHORT[section.key];
+      const items = ORDER.filter((o) => o.section === section);
+      const segs = items
+        .map((o, i) => {
+          const p = subProgress(o.sub.key);
+          const active = o.sub.key === sel.subKey;
+          const title = `${meta.label} \u00b7 ${o.sub.title}: ${p.done} of ${p.total} indicators rated`;
+          const label =
+            i === 0
+              ? `<b>${escapeHtml(meta.label.replace("Part ", ""))}</b> &middot; ${i + 1}`
+              : String(i + 1);
+          return `
+        <button type="button" class="eopcrf2-seg${active ? " is-active" : ""}${p.complete ? " is-complete" : ""}"
+                data-sub="${o.sub.key}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}"${active ? ' aria-current="true"' : ""}>
           <span class="eopcrf2-seg-bar"><span style="width:${(p.done / p.total) * 100}%"></span></span>
-          <span class="eopcrf2-seg-label">${o.code}</span>
+          <span class="eopcrf2-seg-label">${label}</span>
         </button>`;
+        })
+        .join("");
+      return `<div class="eopcrf2-pgroup" style="--n:${items.length}">${segs}</div>`;
     }).join("");
     nextBtn.hidden = complete;
     doneBadge.hidden = !complete;
   }
 
   // ================= Render: list =================
-  function renderList() {
-    let html = "";
-    DATA.forEach((section) => {
-      const meta = PART_SHORT[section.key];
-      const items = ORDER.filter((o) => o.section === section);
-      html += `
-        <div class="eopcrf2-list-group">
-          <span>${meta.label} &middot; ${escapeHtml(meta.name)}</span>
-        </div>`;
-      items.forEach((o) => {
-        const p = subProgress(o.sub.key);
-        const active = o.sub.key === sel.subKey;
-        html += `
-          <div class="eopcrf2-row${active ? " is-active" : ""}${p.complete ? " is-complete" : ""}">
-            <button type="button" class="eopcrf2-row-main" data-action="select-sub" data-sub="${o.sub.key}"${active ? ' aria-current="true"' : ""}>
-              <span class="eopcrf2-row-top">
-                <span class="eopcrf2-row-text">
-                  <span class="eopcrf2-row-name">${escapeHtml(o.sub.title)}</span>
-                </span>
-                <span class="eopcrf2-row-count">${p.done}/${p.total}</span>
-              </span>
-              <span class="eopcrf2-row-bar"><span style="width:${(p.done / p.total) * 100}%"></span></span>
-            </button>
-          </div>`;
-      });
+  // Same layout as OPCRF I: Part tabs on top, a header, then one group per
+  // competency. The open competency lists its five indicators on a rail.
+  const view = { part: null, lastSub: null };
+  const TAB_SHORT = { leadership: "Leadership", cbc: "Core behavioural" };
+
+  function partStats(section) {
+    const items = ORDER.filter((o) => o.section === section);
+    let rated = 0;
+    let total = 0;
+    let done = 0;
+    items.forEach((o) => {
+      const p = subProgress(o.sub.key);
+      rated += p.done;
+      total += p.total;
+      if (p.complete) done++;
     });
+    return { n: items.length, done, rated, total };
+  }
+
+  function renderList() {
+    // Follow the selection: if it moved to a competency in another Part, switch tab.
+    if (sel.subKey !== view.lastSub) {
+      view.part = SUBSECTION_TO_SECTION[sel.subKey];
+      view.lastSub = sel.subKey;
+    }
+    if (!view.part) view.part = DATA[0].key;
+    const section = DATA.find((s) => s.key === view.part);
+    const meta = PART_SHORT[section.key];
+    const stats = partStats(section);
+
+    let html =
+      '<div class="eopcrf2-nv-top"><div class="eopcrf2-nv-tabs" role="tablist">';
+    DATA.forEach((s) => {
+      const st = partStats(s);
+      const m = PART_SHORT[s.key];
+      const on = s.key === view.part;
+      html += `
+        <button type="button" role="tab" aria-selected="${on}" class="eopcrf2-nv-tab${on ? " is-on" : ""}" data-action="select-part" data-part="${s.key}" title="${escapeAttr(m.label + " \u00b7 " + m.name)}">
+          <b>${escapeHtml(m.label)}</b>
+          <small>${TAB_SHORT[s.key]}</small>
+          <span class="eopcrf2-nv-bar${st.total && st.rated === st.total ? " is-done" : ""}"><i style="width:${st.total ? (st.rated / st.total) * 100 : 0}%"></i></span>
+        </button>`;
+    });
+    html += "</div></div>";
+
+    html += `<div class="eopcrf2-nv-head"><div class="eopcrf2-nv-sub">${escapeHtml(meta.name)}</div><div class="eopcrf2-nv-headrow"><b>${stats.done} of ${stats.n} competencies done</b></div></div>`;
+
+    html += '<div class="eopcrf2-nv-kras">';
+    ORDER.filter((o) => o.section === section).forEach((o) => {
+      const p = subProgress(o.sub.key);
+      const open = o.sub.key === sel.subKey;
+      const full = `${o.code} \u00b7 ${o.sub.title}`;
+      html += `
+        <div class="eopcrf2-nv-group${open ? " is-open" : ""}">
+        <button type="button" class="eopcrf2-nv-kra${open ? " is-open" : ""}" data-action="select-sub" data-sub="${o.sub.key}" aria-expanded="${open}"${open ? ' aria-current="true"' : ""} title="${escapeAttr(full)}" aria-label="${escapeAttr(full)}, ${p.done} of ${p.total} indicators rated">
+          <span class="eopcrf2-nv-badge${p.complete ? " is-done" : ""}" aria-hidden="true">${o.code}</span>
+          <span class="eopcrf2-nv-kra-name">${escapeHtml(o.sub.title)}</span>
+          <span class="eopcrf2-nv-kra-w" title="Indicators rated"><b>${p.done}/${p.total}</b><small>rated</small></span>
+        </button>`;
+      if (open) {
+        html += '<div class="eopcrf2-nv-rail">';
+        ratings[o.sub.key].forEach((r, i) => {
+          const tip = r
+            ? `Rated ${r} \u00b7 ${RATING_LABELS[r]}`
+            : "Not rated yet";
+          html += `
+          <button type="button" class="eopcrf2-nv-obj" data-action="goto-crit" data-sub="${o.sub.key}" data-idx="${i}" title="${escapeAttr(tip)}">
+            <i class="eopcrf2-nv-dot${r ? " is-done" : ""}" aria-hidden="true"></i>
+            <span class="eopcrf2-nv-obj-name">Indicator ${i + 1}</span>
+            <span class="eopcrf2-nv-obj-meta">${r ? "Rated " + r : "Not rated"}</span>
+          </button>`;
+        });
+        html += "</div>";
+      }
+      html += "</div>";
+    });
+    html += "</div>";
     listEl.innerHTML = html;
   }
 
@@ -448,8 +513,31 @@
   });
 
   listEl.addEventListener("click", (e) => {
-    const btn = e.target.closest('[data-action="select-sub"]');
-    if (btn) selectSub(btn.dataset.sub, false);
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === "select-sub") {
+      selectSub(btn.dataset.sub, false);
+    } else if (action === "select-part") {
+      view.part = btn.dataset.part;
+      renderList();
+    } else if (action === "goto-crit") {
+      // Jump to that indicator in the editor.
+      const row =
+        editorEl.querySelectorAll(".eopcrf2-crit")[Number(btn.dataset.idx)];
+      if (!row) return;
+      const calm = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      row.scrollIntoView({
+        block: "center",
+        behavior: calm ? "auto" : "smooth",
+      });
+      const target =
+        row.querySelector(".eopcrf2-rate-btn.is-selected") ||
+        row.querySelector(".eopcrf2-rate-btn");
+      if (target) target.focus({ preventScroll: true });
+    }
   });
 
   editorEl.addEventListener("click", (e) => {

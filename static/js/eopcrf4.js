@@ -505,43 +505,108 @@
   // ------------------------------------------------------------------
   // List (nav-col)
   // ------------------------------------------------------------------
-  function rowHtml({ kind, part, position }) {
-    const isFb = kind === "feedback";
-    const on = isFb
-      ? !!state.sel && state.sel.kind === "feedback" && state.sel.part === part
-      : isRowSel(part, position);
-    const total = isFb ? 1 : PARTS[part].columns.length;
-    const n = isFb ? (feedbackFilled(part) ? 1 : 0) : rowFilled(part, position);
-    const isDone = n === total;
-    const name = isFb ? "Feedback" : `Row ${position}`;
-    const count = isFb
-      ? feedbackFilled(part)
-        ? "Written"
-        : "Empty"
-      : `${n}/${total}`;
-    return `
-      <div class="eopcrf4-row${on ? " is-active" : ""}${isDone ? " is-complete" : ""}">
-        <button type="button" class="eopcrf4-row-main" data-kind="${kind}" data-part="${part}"${isFb ? "" : ` data-position="${position}"`} aria-current="${on}">
-          <span class="eopcrf4-row-top">
-            <span class="eopcrf4-row-text">
-              <span class="eopcrf4-row-name">${name}</span>
-            </span>
-            <span class="eopcrf4-row-count">${isDone && !isFb ? '<i class="ti ti-circle-check-filled" aria-hidden="true"></i>' : ""}${count}</span>
-          </span>
-          <span class="eopcrf4-row-bar" aria-hidden="true"><span style="width:${(n / total) * 100}%"></span></span>
-        </button>
-      </div>`;
+  // Same layout as OPCRF I: Part tabs on top, a header, then one group per
+  // row (plus Feedback). The open row lists its fields on a rail.
+  const view = { part: null, lastKey: null };
+  const PART_FULL = {
+    A: "Office Improvement Plan",
+    B: "Individual Development Plan",
+  };
+  const PART_TAB = { A: "Office plan", B: "Development plan" };
+
+  function selKey() {
+    const s = state.sel;
+    return s ? `${s.kind}:${s.part}:${s.position || ""}` : "";
   }
 
+  function partStats(part) {
+    const cols = PARTS[part].columns.length;
+    let done = 0;
+    let filled = 0;
+    PARTS[part].positions.forEach((position) => {
+      const f = rowFilled(part, position);
+      filled += f;
+      if (f === cols) done++;
+    });
+    return {
+      n: PARTS[part].positions.length,
+      done,
+      filled,
+      cols: cols * PARTS[part].positions.length,
+    };
+  }
+
+  const colShort = (c) => String(c.label || c.field).replace(/\s*\(.*\)$/, "");
+
   function renderList() {
-    listEl.innerHTML = ["A", "B"]
-      .map((part) => {
-        const rows = PARTS[part].positions
-          .map((position) => rowHtml({ kind: "row", part, position }))
-          .join("");
-        return `<div class="eopcrf4-list-group">${PART_NAMES[part]}</div>${rows}${rowHtml({ kind: "feedback", part })}`;
-      })
-      .join("");
+    const key = selKey();
+    if (state.sel && key !== view.lastKey) {
+      view.part = state.sel.part;
+      view.lastKey = key;
+    }
+    if (!view.part) view.part = "A";
+    const part = view.part;
+    const stats = partStats(part);
+
+    let html =
+      '<div class="eopcrf4-nv-top"><div class="eopcrf4-nv-tabs" role="tablist">';
+    ["A", "B"].forEach((pt) => {
+      const st = partStats(pt);
+      const on = pt === part;
+      html += `
+        <button type="button" role="tab" aria-selected="${on}" class="eopcrf4-nv-tab${on ? " is-on" : ""}" data-action="select-part" data-part="${pt}" title="${escapeHtml(PART_NAMES[pt])}">
+          <b>${PART_TITLES[pt]}</b>
+          <small>${PART_TAB[pt]}</small>
+          <span class="eopcrf4-nv-bar${st.cols && st.filled === st.cols ? " is-done" : ""}"><i style="width:${st.cols ? (st.filled / st.cols) * 100 : 0}%"></i></span>
+        </button>`;
+    });
+    html += "</div></div>";
+
+    html += `<div class="eopcrf4-nv-head"><div class="eopcrf4-nv-sub">${PART_FULL[part]}</div><div class="eopcrf4-nv-headrow"><b>${stats.done} of ${stats.n} rows done</b></div></div>`;
+
+    html += '<div class="eopcrf4-nv-kras">';
+    PARTS[part].positions.forEach((position) => {
+      const open = isRowSel(part, position);
+      const cols = PARTS[part].columns;
+      const row = state.rows[rowKey(part, position)] || {};
+      const filled = rowFilled(part, position);
+      const isDone = filled === cols.length;
+      html += `
+        <div class="eopcrf4-nv-group${open ? " is-open" : ""}">
+        <button type="button" class="eopcrf4-nv-kra${open ? " is-open" : ""}" data-action="select-row" data-kind="row" data-part="${part}" data-position="${position}" aria-expanded="${open}"${open ? ' aria-current="true"' : ""} aria-label="${PART_TITLES[part]} Row ${position}, ${filled} of ${cols.length} fields filled">
+          <span class="eopcrf4-nv-badge${isDone ? " is-done" : ""}" aria-hidden="true">${position}</span>
+          <span class="eopcrf4-nv-kra-name">Row ${position}</span>
+          <span class="eopcrf4-nv-kra-w" title="Fields filled"><b>${filled}/${cols.length}</b><small>filled</small></span>
+        </button>`;
+      if (open) {
+        html += '<div class="eopcrf4-nv-rail">';
+        cols.forEach((c) => {
+          const has = !!String(row[c.field] || "").trim();
+          html += `
+          <button type="button" class="eopcrf4-nv-obj" data-action="goto-field" data-field="${c.field}" title="${has ? "Filled" : "Not filled yet"}">
+            <i class="eopcrf4-nv-dot${has ? " is-done" : ""}" aria-hidden="true"></i>
+            <span class="eopcrf4-nv-obj-name">${escapeHtml(colShort(c))}</span>
+          </button>`;
+        });
+        html += "</div>";
+      }
+      html += "</div>";
+    });
+
+    const fbOn =
+      !!state.sel && state.sel.kind === "feedback" && state.sel.part === part;
+    const fbDone = feedbackFilled(part);
+    html += `
+      <div class="eopcrf4-nv-sep"></div>
+      <div class="eopcrf4-nv-group${fbOn ? " is-open" : ""}">
+        <button type="button" class="eopcrf4-nv-kra${fbOn ? " is-open" : ""}" data-action="select-row" data-kind="feedback" data-part="${part}"${fbOn ? ' aria-current="true"' : ""} aria-label="${PART_TITLES[part]} Feedback, ${fbDone ? "written" : "not written yet"}">
+          <span class="eopcrf4-nv-badge${fbDone ? " is-done" : ""}" aria-hidden="true"><i class="ti ti-message-2"></i></span>
+          <span class="eopcrf4-nv-kra-name">Feedback</span>
+          <span class="eopcrf4-nv-kra-w">${fbDone ? "<b>Written</b>" : "<small>Not written</small>"}</span>
+        </button>
+      </div>`;
+    html += "</div>";
+    listEl.innerHTML = html;
     renderProgress();
   }
 
@@ -556,16 +621,31 @@
     progressCountEl.innerHTML = `<strong>${done} of ${total}</strong><span>complete</span>`;
     segsEl.setAttribute("aria-valuemax", String(total));
     segsEl.setAttribute("aria-valuenow", String(done));
-    segsEl.innerHTML = ROW_ORDER.map((r) => {
-      const filled = rowFilled(r.part, r.position);
-      const cols = PARTS[r.part].columns.length;
-      return `
-        <button type="button" class="eopcrf4-seg${isRowSel(r.part, r.position) ? " is-active" : ""}${filled === cols ? " is-complete" : ""}"
-                data-part="${r.part}" data-position="${r.position}" title="${PART_TITLES[r.part]} Row ${r.position}: ${filled} of ${cols} filled">
+    // One group per Part (IV-A, IV-B); the first segment of a group carries the Part code.
+    segsEl.innerHTML = ["A", "B"]
+      .map((part) => {
+        const rows = ROW_ORDER.filter((r) => r.part === part);
+        const cols = PARTS[part].columns.length;
+        const segs = rows
+          .map((r, i) => {
+            const filled = rowFilled(r.part, r.position);
+            const active = isRowSel(r.part, r.position);
+            const title = `${PART_TITLES[part]} Row ${r.position}: ${filled} of ${cols} filled`;
+            const label =
+              i === 0
+                ? `<b>${PART_TITLES[part].replace("Part ", "")}</b> &middot; ${r.position}`
+                : String(r.position);
+            return `
+        <button type="button" class="eopcrf4-seg${active ? " is-active" : ""}${filled === cols ? " is-complete" : ""}"
+                data-part="${r.part}" data-position="${r.position}" title="${title}" aria-label="${title}"${active ? ' aria-current="true"' : ""}>
           <span class="eopcrf4-seg-bar"><span style="width:${(filled / cols) * 100}%"></span></span>
-          <span class="eopcrf4-seg-label">${r.part}${r.position}</span>
+          <span class="eopcrf4-seg-label">${label}</span>
         </button>`;
-    }).join("");
+          })
+          .join("");
+        return `<div class="eopcrf4-pgroup" style="--n:${rows.length}">${segs}</div>`;
+      })
+      .join("");
     nextBtn.hidden = complete;
     doneBadge.hidden = !complete;
   }
@@ -831,10 +911,10 @@
     const target =
       next.kind === "feedback"
         ? listEl.querySelector(
-            `.eopcrf4-row-main[data-kind="feedback"][data-part="${next.part}"]`,
+            `.eopcrf4-nv-kra[data-kind="feedback"][data-part="${next.part}"]`,
           )
         : listEl.querySelector(
-            `.eopcrf4-row-main[data-kind="row"][data-part="${next.part}"][data-position="${next.position}"]`,
+            `.eopcrf4-nv-kra[data-kind="row"][data-part="${next.part}"][data-position="${next.position}"]`,
           );
     if (target && target.scrollIntoView)
       target.scrollIntoView({ block: "nearest" });
@@ -877,16 +957,36 @@
   // Events
   // ------------------------------------------------------------------
   listEl.addEventListener("click", (e) => {
-    const btn = e.target.closest(".eopcrf4-row-main");
+    const btn = e.target.closest("[data-action]");
     if (!btn) return;
-    if (btn.dataset.kind === "feedback") {
-      select({ kind: "feedback", part: btn.dataset.part });
-    } else {
-      select({
-        kind: "row",
-        part: btn.dataset.part,
-        position: Number(btn.dataset.position),
+    const action = btn.dataset.action;
+    if (action === "select-part") {
+      view.part = btn.dataset.part;
+      renderList();
+    } else if (action === "select-row") {
+      if (btn.dataset.kind === "feedback") {
+        select({ kind: "feedback", part: btn.dataset.part });
+      } else {
+        select({
+          kind: "row",
+          part: btn.dataset.part,
+          position: Number(btn.dataset.position),
+        });
+      }
+    } else if (action === "goto-field") {
+      // Jump to that field in the editor.
+      const target = editorEl.querySelector(
+        `[data-field="${btn.dataset.field}"]`,
+      );
+      if (!target) return;
+      const calm = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      (target.closest(".eopcrf4-fld") || target).scrollIntoView({
+        block: "center",
+        behavior: calm ? "auto" : "smooth",
       });
+      if (target.tagName === "TEXTAREA") target.focus({ preventScroll: true });
     }
   });
 
