@@ -346,6 +346,97 @@ def _get_signatory_date(tab_id, role):
     return row
 
 
+# ---------------------------------------------------------------------------
+# Home-page progress (the "% complete" bar on each report card).
+# Progress = items answered / items required, for the current year.
+#   SBM  : indicators with a degree AND a MOV link / SBM_INDICATOR_COUNT
+#          (same rule as the model: complete = degree + link)
+#   AIP  : programs/projects with an accomplishment entered / all projects
+#          (AIP is not year-scoped, so neither is this)
+#   OPCRF: average of the parts below (Part III is a computed summary, so it
+#          has nothing to fill in and is left out)
+#            Part I  : objectives with all three ratings (quality, efficiency,
+#                      timeliness) selected / all objectives
+#            Part II : criteria with a rating / EOPCRF2_CRITERIA_TOTAL
+#            Part IV : plan rows with objective, intervention, timeline and
+#                      resources all filled / all plan rows
+# ---------------------------------------------------------------------------
+# Total number of rated criteria in Part II, from DATA in static/js/eopcrf2.js:
+# Leadership 3 subsections x 5 = 15, Core Behavioural 6 x 5 = 30.
+# Update this if criteria are ever added to or removed from that file.
+EOPCRF2_CRITERIA_TOTAL = 45
+
+
+def _pct(done, total):
+    return min(100, round(done / total * 100)) if total else 0
+
+
+def _filled(value):
+    return bool((value or "").strip()) if isinstance(value, str) or value is None else True
+
+
+def _progress_sbm(year):
+    done = SBMResponse.query.filter(
+        SBMResponse.year == year,
+        SBMResponse.degree.isnot(None),
+        SBMResponse.degree != "",
+        SBMResponse.mov_link != "",
+    ).count()
+    return _pct(done, SBM_INDICATOR_COUNT)
+
+
+def _progress_aip():
+    projects = AIPProject.query.all()
+    done = sum(1 for p in projects if _filled(p.accomplishment))
+    return _pct(done, len(projects))
+
+
+def _progress_opcrf(year):
+    parts = []
+
+    # Part I
+    _ensure_seeded_kras(year)
+    objectives = (
+        EOPCRF1Objective.query
+        .join(EOPCRF1Kra, EOPCRF1Objective.kra_id == EOPCRF1Kra.id)
+        .filter(EOPCRF1Kra.year == year)
+        .all()
+    )
+    rated = sum(
+        1
+        for o in objectives
+        if None not in (o.rating_quality, o.rating_efficiency, o.rating_timeliness)
+    )
+    parts.append(_pct(rated, len(objectives)))
+
+    # Part II
+    if EOPCRF2_CRITERIA_TOTAL:
+        rated_criteria = EOPCRF2Rating.query.filter(
+            EOPCRF2Rating.year == year, EOPCRF2Rating.rating.isnot(None)
+        ).count()
+        parts.append(_pct(rated_criteria, EOPCRF2_CRITERIA_TOTAL))
+
+    # Part IV
+    slots = sum(len(EOPCRF4_POSITIONS_BY_PART[p]) for p in EOPCRF4_PARTS)
+    complete = sum(
+        1
+        for r in EOPCRF4Row.query.filter_by(year=year).all()
+        if all(_filled(getattr(r, f)) for f in ("objective", "intervention", "timeline", "resources"))
+    )
+    parts.append(_pct(complete, slots))
+
+    return round(sum(parts) / len(parts))
+
+
+def _home_progress():
+    year = _current_year()
+    return {
+        "opcrf": _progress_opcrf(year),
+        "sbm": _progress_sbm(year),
+        "aip": _progress_aip(),
+    }
+
+
 @app.route("/")
 def home():
     """Landing page shown when the app first opens: a masthead plus a card
@@ -356,6 +447,7 @@ def home():
         active_tab=None,
         preparer=_get_preparer(),
         year=_current_year(),
+        progress=_home_progress(),
     )
 
 
