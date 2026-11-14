@@ -4,7 +4,28 @@ endblock %} {% block extra_css %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/home.css') }}"
 />
-{% endblock %} {% block content %}
+{% endblock %} {% block content %} {#
+---------------------------------------------------------------------------
+Optional context from the view function (has a safe default): progress =
+{'opcrf': 0-100, 'sbm': 0-100, 'aip': 0-100} If it is not passed, bars show 0% /
+"Not started".
+--------------------------------------------------------------------------- #}
+{% set prog = progress|default({}) %} {% macro status(pct) %}{% if pct >= 100
+%}Complete{% elif pct > 0 %}In progress{% else %}Not started{% endif %}{%
+endmacro %} {% macro meter(pct, name) %}
+<div class="hm-meter">
+  <div class="hm-meter__text">{{ pct }}% complete</div>
+  <progress
+    class="hm-meter__bar"
+    max="100"
+    value="{{ pct }}"
+    aria-label="{{ name }} progress"
+  >
+    {{ pct }}%
+  </progress>
+</div>
+{% endmacro %}
+
 <!-- ===== MASTHEAD: organization line, then logo + title block ===== -->
 <section class="hm-masthead">
   <div class="hm-org">
@@ -29,67 +50,131 @@ endblock %} {% block extra_css %}
   </div>
 </section>
 
-<!-- ===== REPORTS ===== -->
-<section class="hm-reports" aria-label="Reports">
+<!-- ===== REPORTS: the three forms people fill in ===== -->
+<section class="hm-section" aria-labelledby="hm-reports-h">
+  <h2 class="hm-section__title" id="hm-reports-h">Reports</h2>
+
   <div class="hm-grid">
-    <!-- OPCRF: same card anatomy as the others; the footer row holds the parts -->
-    <article class="hm-card hm-card--opcrf">
-      <i class="ti ti-clipboard-check hm-card__icon" aria-hidden="true"></i>
-      <h2 class="hm-card__title">OPCRF</h2>
-      <p class="hm-card__label">
-        Office Performance Commitment and Review Form
-      </p>
-      <div class="hm-card__parts" role="group" aria-label="OPCRF parts">
-        {% for tab in tabs %}
-        <a
-          href="{{ url_for('view_tab', tab_id=tab.id) }}"
-          class="hm-part"
-          title="{{ tab.desc }}"
-        >
-          {{ tab.part }}
-        </a>
-        {% endfor %}
+    <!-- OPCRF: card itself is not a link; the footer holds the part links -->
+    {% set p = prog.get('opcrf', 0) %}
+    <article class="hm-card hm-card--navy">
+      <div class="hm-card__head">
+        <div class="hm-card__top">
+          <i class="ti ti-clipboard-check hm-card__icon" aria-hidden="true"></i>
+          <span class="hm-pill">{{ status(p) }}</span>
+        </div>
+        <h3 class="hm-card__title">OPCRF</h3>
+      </div>
+      <div class="hm-card__body">
+        <p class="hm-card__label">
+          Office Performance Commitment and Review Form
+        </p>
+        {{ meter(p, 'OPCRF') }}
+      </div>
+      <div class="hm-card__foot">
+        <div class="hm-parts" role="group" aria-label="OPCRF parts">
+          {% for tab in tabs %}
+          <a
+            href="{{ url_for('view_tab', tab_id=tab.id) }}"
+            class="hm-part"
+            title="{{ tab.desc }}"
+          >
+            {{ tab.part }}
+          </a>
+          {% endfor %}
+        </div>
       </div>
     </article>
 
-    <!-- SBM: single page, whole card is the link -->
+    <!-- SBM: whole card is the link -->
+    {% set p = prog.get('sbm', 0) %}
     <a href="{{ url_for('sbm') }}" class="hm-card hm-card--link hm-card--teal">
-      <i class="ti ti-building-community hm-card__icon" aria-hidden="true"></i>
-      <h2 class="hm-card__title">SBM</h2>
-      <p class="hm-card__label">
-        School-Based Management (SBM) Self-Assessment Checklist
-      </p>
-      <span class="hm-card__cta">
-        Open <i class="ti ti-arrow-right" aria-hidden="true"></i>
-      </span>
+      <div class="hm-card__head">
+        <div class="hm-card__top">
+          <i
+            class="ti ti-building-community hm-card__icon"
+            aria-hidden="true"
+          ></i>
+          <span class="hm-pill">{{ status(p) }}</span>
+        </div>
+        <h3 class="hm-card__title">SBM</h3>
+      </div>
+      <div class="hm-card__body">
+        <p class="hm-card__label">
+          School-Based Management (SBM) Self-Assessment Checklist
+        </p>
+        {{ meter(p, 'SBM') }}
+      </div>
+      <div class="hm-card__foot">
+        <span class="hm-btn"
+          >Open <i class="ti ti-arrow-right" aria-hidden="true"></i
+        ></span>
+      </div>
     </a>
 
-    <!-- AIP: single page, whole card is the link -->
+    <!-- AIP: whole card is the link -->
+    {% set p = prog.get('aip', 0) %}
     <a
       href="{{ url_for('aip') }}"
       class="hm-card hm-card--link hm-card--violet"
     >
-      <i class="ti ti-calendar-stats hm-card__icon" aria-hidden="true"></i>
-      <h2 class="hm-card__title">AIP</h2>
-      <p class="hm-card__label">
-        School Annual Implementation Plan (AIP) Accomplishment Report
-      </p>
-      <span class="hm-card__cta">
-        Open <i class="ti ti-arrow-right" aria-hidden="true"></i>
-      </span>
-    </a>
-
-    <!-- Dashboard: single page, whole card is the link -->
-    <a href="{{ url_for('dashboard') }}" class="hm-card hm-card--link">
-      <i class="ti ti-chart-bar hm-card__icon" aria-hidden="true"></i>
-      <h2 class="hm-card__title">Dashboard</h2>
-      <p class="hm-card__label">
-        Ratings, responses and budget at a glance for {{ year }}
-      </p>
-      <span class="hm-card__cta">
-        Open <i class="ti ti-arrow-right" aria-hidden="true"></i>
-      </span>
+      <div class="hm-card__head">
+        <div class="hm-card__top">
+          <i class="ti ti-calendar-stats hm-card__icon" aria-hidden="true"></i>
+          <span class="hm-pill">{{ status(p) }}</span>
+        </div>
+        <h3 class="hm-card__title">AIP</h3>
+      </div>
+      <div class="hm-card__body">
+        <p class="hm-card__label">
+          School Annual Implementation Plan (AIP) Accomplishment Report
+        </p>
+        {{ meter(p, 'AIP') }}
+      </div>
+      <div class="hm-card__foot">
+        <span class="hm-btn"
+          >Open <i class="ti ti-arrow-right" aria-hidden="true"></i
+        ></span>
+      </div>
     </a>
   </div>
+</section>
+
+<!-- ===== RESULTS: dashboard band ===== -->
+<section class="hm-section" aria-labelledby="hm-results-h">
+  <h2 class="hm-section__title" id="hm-results-h">Results</h2>
+
+  <a href="{{ url_for('dashboard') }}" class="hm-band">
+    <div class="hm-band__main">
+      <i class="ti ti-chart-bar hm-band__icon" aria-hidden="true"></i>
+      <div class="hm-band__text">
+        <h3 class="hm-band__title">Dashboard</h3>
+        <p class="hm-band__label">
+          See how the school is performing this year.
+        </p>
+        <span class="hm-band__btn"
+          >View dashboard <i class="ti ti-arrow-right" aria-hidden="true"></i
+        ></span>
+      </div>
+    </div>
+
+    <!-- Decorative chart: no data, just a visual cue for "analytics" -->
+    <svg
+      class="hm-band__chart"
+      width="300"
+      height="134"
+      viewBox="0 0 300 134"
+      aria-hidden="true"
+    >
+      <rect x="12" y="90" width="34" height="40" rx="4" />
+      <rect x="60" y="60" width="34" height="70" rx="4" />
+      <rect x="108" y="75" width="34" height="55" rx="4" />
+      <rect x="156" y="35" width="34" height="95" rx="4" />
+      <rect x="204" y="50" width="34" height="80" rx="4" />
+      <rect x="252" y="15" width="34" height="115" rx="4" class="is-last" />
+      <path class="trend" d="M29 80 L77 52 L125 66 L173 28 L221 42 L269 10" />
+      <path class="base" d="M0 131 H300" />
+    </svg>
+  </a>
 </section>
 {% endblock %}

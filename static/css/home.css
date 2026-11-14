@@ -1,13 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    HOME PAGE
-   Type scale (top to bottom):
-     title 3.25rem > card title 1.25rem > subtitle 0.95rem
-     > body / labels 0.85rem > meta 0.75rem
-   Colors come from base.css (:root). Navy leads; gold marks emphasis;
-   teal (SBM) and violet (AIP) appear only as small card accents.
+   Type scale: title 3.25rem > card title 2rem > section heading 1.25rem
+   > subtitle 0.95rem > body / labels 0.85rem > meta 0.78rem
+   Colors come from base.css (:root). Every card owns one color:
+   navy (OPCRF), teal (SBM), violet (AIP), amber (Dashboard).
 ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Masthead ────────────────────────────────────────────────────────────── */
+/* ── Masthead (unchanged) ────────────────────────────────────────────────── */
 .hm-masthead {
   background: var(--white);
   border: 1px solid var(--border);
@@ -82,120 +81,169 @@
   color: var(--text-light);
 }
 
-/* ── Card grid: four equal columns ───────────────────────────────────────── */
+/* ── Sections ────────────────────────────────────────────────────────────── */
+.hm-section + .hm-section {
+  margin-top: 1.75rem;
+}
+
+.hm-section__title {
+  margin-bottom: 0.85rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+/* ── Report cards: three equal columns ───────────────────────────────────── */
 .hm-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
 
 .hm-card {
   --accent: var(--navy);
-  --accent-bg: #eef2ff;
-  /* Footer row height, shared by "Open" and the OPCRF parts so the divider
-     line sits at exactly the same height on every card. */
-  --foot-h: 2rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
   min-width: 0;
-  min-height: 210px;
-  padding: 1.1rem 1.25rem;
+  min-height: 330px;
+  overflow: hidden;
   background: var(--white);
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent);
   border-radius: 12px;
-  text-decoration: none;
   color: var(--text);
+  text-decoration: none;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
+.hm-card--navy {
+  --accent: var(--navy);
+}
 .hm-card--teal {
   --accent: #0f766e;
-  --accent-bg: #f0fdfa;
 }
-
 .hm-card--violet {
   --accent: #6d28d9;
-  --accent-bg: #faf5ff;
+}
+
+/* Coloured header block */
+.hm-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.35rem 1.5rem 1.25rem;
+  background: var(--accent);
+  color: #fff;
+}
+
+.hm-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .hm-card__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 9px;
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-size: 1.35rem;
-  margin-bottom: 0.4rem;
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 1.6rem;
+}
+
+.hm-pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .hm-card__title {
-  font-size: 1.25rem;
+  font-size: 2rem;
   font-weight: 700;
-  color: var(--navy-deep);
-  line-height: 1.2;
+  line-height: 1.1;
+}
+
+/* Body: label on top, progress pinned to the bottom of the body so the
+   percentage and bar line up across all three cards, whatever the label length. */
+.hm-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.1rem 1.5rem 0;
 }
 
 .hm-card__label {
-  font-size: 0.82rem;
-  line-height: 1.45;
+  font-size: 0.88rem;
+  line-height: 1.5;
   color: var(--text-light);
 }
 
-/* ── Footer row (shared) ─────────────────────────────────────────────────────
-   "Open" (SBM, AIP) and the part links (OPCRF) use the same fixed height,
-   padding and divider, and both are pushed to the card bottom with
-   margin-top:auto, so the lines above them align across cards.            */
-.hm-card__cta,
-.hm-card__parts {
-  box-sizing: border-box;
+.hm-meter {
   margin-top: auto;
-  height: calc(var(--foot-h) + 0.75rem + 1px);
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
+}
+
+.hm-meter__text {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+
+.hm-meter__bar {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--border);
+  color: var(--accent); /* fill colour in browsers that use it */
+}
+
+.hm-meter__bar::-webkit-progress-bar {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.hm-meter__bar::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.hm-meter__bar::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+/* Footer: same height on every card, so the lines above it align */
+.hm-card__foot {
+  padding: 1rem 1.5rem 1.25rem;
+}
+
+.hm-btn,
+.hm-part {
   display: flex;
-}
-
-.hm-card__cta {
   align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--navy);
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
 }
 
-.hm-card__cta i {
-  transition: transform 0.15s ease;
-}
-
-/* ── Hover lift: single-page cards and the OPCRF card ────────────────────── */
-.hm-card--link,
-.hm-card--opcrf {
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
-}
-
-.hm-card--link:hover,
-.hm-card--link:focus-visible,
-.hm-card--opcrf:hover,
-.hm-card--opcrf:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 8px 22px var(--shadow);
-  transform: translateY(-2px);
-  outline: none;
-}
-
-.hm-card--link:hover .hm-card__cta i {
-  transform: translateX(3px);
-}
-
-/* ── OPCRF card: same anatomy, the footer row holds the parts ────────────── */
-.hm-card__parts {
-  align-items: stretch;
+.hm-parts {
+  display: flex;
   gap: 6px;
 }
 
@@ -203,65 +251,171 @@
   flex: 1 1 0;
   min-width: 0;
   padding: 0 0.25rem;
-  border-radius: 7px;
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: var(--foot-h);
-  text-align: center;
-  text-decoration: none;
+  font-size: 0.82rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    transform 0.15s ease;
 }
 
 .hm-part:hover,
 .hm-part:focus-visible {
-  background: var(--gold);
-  color: var(--navy-deep);
-  outline: none;
+  background: var(--navy-deep);
+  transform: translateY(-1px);
 }
 
-/* ── Placeholder card ────────────────────────────────────────────────────── */
-.hm-card--ghost {
-  background: #f4f5f7;
-  border: 1.5px dashed #b3b9c2;
-  cursor: default;
+.hm-btn i {
+  transition: transform 0.15s ease;
 }
 
-.hm-card--ghost .hm-card__icon {
-  background: #e6e8ec;
-  color: #9aa1ad;
+/* Hand cursor: the whole card (and every child, in case a global rule sets
+   another cursor on text) for the clickable cards. */
+.hm-card--link,
+.hm-card--link *,
+.hm-band,
+.hm-band *,
+.hm-part {
+  cursor: pointer;
 }
 
-.hm-card--ghost .hm-card__title {
-  color: #7a828f;
+/* Hover / focus */
+.hm-card--link:hover,
+.hm-card--link:focus-visible,
+.hm-card--navy:hover,
+.hm-card--navy:focus-within {
+  box-shadow: 0 8px 22px var(--shadow);
+  transform: translateY(-2px);
 }
 
-.hm-soon {
-  margin-top: auto;
-  align-self: flex-start;
+.hm-card--link:hover .hm-btn i {
+  transform: translateX(3px);
+}
+
+.hm-card--link:focus-visible,
+.hm-part:focus-visible,
+.hm-band:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ── Dashboard band ──────────────────────────────────────────────────────── */
+.hm-band {
+  --accent: #b45309;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  min-height: 200px;
+  padding: 1.75rem 2.25rem;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.hm-band:hover,
+.hm-band:focus-visible {
+  box-shadow: 0 8px 22px var(--shadow);
+  transform: translateY(-2px);
+}
+
+.hm-band__main {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.hm-band__icon {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px 4px 8px;
-  border-radius: 999px;
-  border: 1px solid #f0d9a0;
-  background: #fdecc4;
-  color: #92650a;
-  font-size: 0.72rem;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 1.8rem;
+}
+
+.hm-band__title {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.hm-band__label {
+  max-width: 380px;
+  margin-top: 8px;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.hm-band__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  margin-top: 1.1rem;
+  padding: 0 1.4rem;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+}
+
+.hm-band__btn i {
+  transition: transform 0.15s ease;
+}
+
+.hm-band:hover .hm-band__btn i {
+  transform: translateX(3px);
+}
+
+/* Decorative chart (white on amber) */
+.hm-band__chart {
+  flex-shrink: 0;
+  max-width: 100%;
+  height: auto;
+  padding-right: 0.5rem;
+}
+
+.hm-band__chart rect {
+  fill: #fff;
+  fill-opacity: 0.35;
+}
+
+.hm-band__chart rect.is-last {
+  fill-opacity: 0.95;
+}
+
+.hm-band__chart .trend {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hm-band__chart .base {
+  stroke: #fff;
+  stroke-opacity: 0.5;
+  stroke-width: 2;
 }
 
 /* ── Narrower screens ────────────────────────────────────────────────────── */
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
   .hm-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hm-band__chart {
+    width: 220px;
   }
 }
 
@@ -274,5 +428,20 @@
   }
   .hm-grid {
     grid-template-columns: 1fr;
+  }
+  .hm-band {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .hm-band__chart {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-card,
+  .hm-band,
+  .hm-btn i {
+    transition: none;
   }
 }
