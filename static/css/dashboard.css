@@ -1161,3 +1161,185 @@
     animation: none;
   }
 }
+
+/* ── EOPCRF 2 body: ranked list of competencies ──────────────────────────────
+   Reuses the EOPCRF 1 list (.db-kras, .db-kra, .db-objs, .db-chip, badges) and
+   only adds: a wider average column (full rating labels), part dividers
+   (.db-cgrp) and the indicators-per-rating chart (.db-dots). All shades of the
+   section color (--c = #3b5bdb); gold/coral mark highest/lowest competency. */
+.db-kras--e2 .db-kras__head,
+.db-kras--e2 .db-kra {
+  grid-template-columns:
+    32px minmax(0, 1fr) minmax(0, 1.3fr)
+    226px 132px;
+}
+.db-cgrp {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1.25rem 0.5rem 1.5rem;
+  background: color-mix(in srgb, var(--c) 7%, var(--white));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 14%, var(--white));
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--c);
+}
+.db-kras__head + .db-cgrp {
+  border-top: 0;
+}
+.db-cgrp span:last-child {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--text-light);
+}
+.db-cgrp b {
+  font-weight: 600;
+  color: var(--c);
+  font-variant-numeric: tabular-nums;
+}
+
+/* indicators per rating: dot plot. One dot per indicator, stacked above its
+   rating (1 to 5); darker = higher rating. */
+.db-dots {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.db-dots__axis {
+  stroke: var(--border);
+}
+.db-dots__t {
+  font-family: inherit;
+  font-size: 9px;
+  fill: var(--text-light);
+}
+.db-dots__ghost {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.db-dots circle[data-r] {
+  fill: var(--dot);
+  stroke: color-mix(in srgb, var(--c) 55%, var(--white));
+  stroke-width: 1;
+}
+.db-dots circle[data-r="5"] {
+  --dot: var(--c);
+}
+.db-dots circle[data-r="4"] {
+  --dot: color-mix(in srgb, var(--c) 78%, var(--white));
+}
+.db-dots circle[data-r="3"] {
+  --dot: color-mix(in srgb, var(--c) 48%, var(--white));
+}
+.db-dots circle[data-r="2"] {
+  --dot: color-mix(in srgb, var(--c) 28%, var(--white));
+}
+.db-dots circle[data-r="1"] {
+  --dot: color-mix(in srgb, var(--c) 14%, var(--white));
+}
+/* the average chip carries a longer label here */
+.db-kras--e2 .db-chip span {
+  font-size: 0.62rem;
+}
+
+@media (max-width: 1100px) {
+  .db-kras--e2 .db-kra {
+    grid-template-columns: 32px minmax(0, 1fr) 132px;
+  }
+  .db-dots {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+}
+
+/* dot plot popup: a small dark label above the clicked dot */
+.db-dots circle[data-n] {
+  cursor: pointer;
+  outline: none;
+  paint-order: stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.15s ease;
+}
+/* hover: the dot grows a little and a soft ring pulses out of it */
+.db-dots circle[data-n]:hover:not(.is-on) {
+  transform: scale(1.2);
+  stroke: var(--c);
+  animation: db-halo 1.1s ease-out infinite;
+}
+@keyframes db-halo {
+  from {
+    stroke-opacity: 0.5;
+    stroke-width: 2;
+  }
+  to {
+    stroke-opacity: 0;
+    stroke-width: 10;
+  }
+}
+.db-dots circle.is-on,
+.db-dots circle[data-n]:focus-visible {
+  stroke: var(--navy-deep);
+  stroke-width: 2;
+  transform: scale(1.2);
+}
+.db-tip {
+  position: fixed;
+  z-index: 50;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 6px 11px 7px;
+  border-radius: 8px;
+  background: #253888;
+  color: #fff;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  text-align: left;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  animation: db-tip-in 0.14s ease-out both;
+}
+@keyframes db-tip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 4px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .db-tip,
+  .db-dots circle[data-n]:hover:not(.is-on) {
+    animation: none;
+  }
+  .db-dots circle[data-n] {
+    transition: none;
+  }
+  .db-dots circle[data-n]:hover:not(.is-on) {
+    stroke-opacity: 0.5;
+    stroke-width: 4;
+  }
+}
+.db-tip b {
+  display: block;
+  font-weight: 600;
+}
+.db-tip span {
+  display: block;
+  margin-top: 1px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.88);
+}
+.db-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: var(--ax, 50%);
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top-color: #253888;
+}
+.db-tip[hidden] {
+  display: none;
+}

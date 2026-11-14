@@ -705,7 +705,78 @@
     draw();
   }
 
-  /* ── EOPCRF 2 (competencies) ─────────────────────────────────────────── */
+  /* ── EOPCRF 2 (competencies) ───────────────────────────────────────────
+     Same structure as the EOPCRF 1 body: one ranked row per competency (all
+     9 in report order, Part II-A then II-B, with a divider per part):
+     no. | name + badge | highest/lowest indicator | indicators per rating |
+     average chip. Highest/lowest competency are marked on their rows only
+     (when the averages differ). Ties read "3 indicators tied at 4". */
+  const E2_LABELS = {
+    5: "Role Model",
+    4: "Consistently Demonstrated",
+    3: "Most of the Time Demonstrated",
+    2: "Sometimes Demonstrated",
+    1: "Rarely Demonstrated",
+  };
+  const E2_PARTS = {
+    "Part II-A": "Part II-A · Leadership Competencies",
+    "Part II-B": "Part II-B · Core Behavioural Competencies",
+  };
+  function e2IndicatorBlock(s) {
+    if (!s.items.length)
+      return `<div class="db-objs db-objs--none"><p class="db-obj__none">No indicators rated yet</p></div>`;
+    const hiV = Math.max(...s.items.map((x) => x.v));
+    const loV = Math.min(...s.items.map((x) => x.v));
+    if (hiV === loV)
+      return `<div class="db-objs${s.items.length === 1 ? "" : " db-objs--none"}">${
+        s.items.length === 1
+          ? e2Line("only", [s.items[0]], hiV)
+          : `<p class="db-obj__none">All ${s.items.length} rated indicators are ${hiV}</p>`
+      }</div>`;
+    return `<div class="db-objs">${e2Line(
+      "hi",
+      s.items.filter((x) => x.v === hiV),
+      hiV,
+    )}${e2Line(
+      "lo",
+      s.items.filter((x) => x.v === loV),
+      loV,
+    )}</div>`;
+  }
+  function e2Line(kind, hit, v) {
+    const icon =
+      kind === "lo" ? "arrow-down" : kind === "only" ? "minus" : "arrow-up";
+    const lab =
+      kind === "hi" ? "Highest" : kind === "lo" ? "Lowest" : "Indicator";
+    const text =
+      hit.length > 1
+        ? `<b>${hit.length} indicators</b>tied at ${v}`
+        : `<b>${hit[0].n}</b>${esc(hit[0].t)}`;
+    const tip = hit.map((x) => `${x.n}. ${x.t}`).join("  |  ");
+    return `<div class="db-obj db-obj--${kind === "lo" ? "lo" : "hi"}"><span class="db-obj__ico"><i class="ti ti-${icon}" aria-hidden="true"></i></span><span class="db-obj__k">${lab}</span><span class="db-obj__t" title="${esc(tip)}">${text}</span><em>${v}</em></div>`;
+  }
+  /* Dot plot: one dot per indicator, stacked above its rating (1 to 5).
+     Click a dot to see which indicator it is (popup wired up below). */
+  function e2Dots(s) {
+    const X = (r) => 24 + (r - 1) * 43;
+    let dots = "";
+    [1, 2, 3, 4, 5].forEach((r) => {
+      const hit = s.items.filter((x) => x.v === r);
+      if (!hit.length) {
+        dots += `<circle class="db-dots__ghost" cx="${X(r)}" cy="40" r="2"/>`;
+        return;
+      }
+      hit.forEach((x, k) => {
+        dots += `<circle data-r="${r}" data-n="${x.n}" data-t="${esc(x.t)}" tabindex="0" role="button" aria-label="Indicator ${x.n}, rated ${r}" cx="${X(r)}" cy="${40 - k * 9}" r="4.2"/>`;
+      });
+    });
+    const summary = [5, 4, 3, 2, 1]
+      .map((r) => [r, s.items.filter((x) => x.v === r).length])
+      .filter(([, n]) => n)
+      .map(([r, n]) => `${n} rated ${r}`)
+      .join(", ");
+    return `<svg class="db-dots" viewBox="0 0 220 62" role="img" aria-label="Indicators per rating: ${esc(summary)}"><line class="db-dots__axis" x1="6" x2="214" y1="48" y2="48"/>${[1, 2, 3, 4, 5].map((r) => `<text class="db-dots__t" x="${X(r)}" y="59" text-anchor="middle">${r}</text>`).join("")}${dots}</svg>`;
+  }
   function renderE2(sec, data) {
     const ratings = (data && data.ratings) || {};
     const subs = [];
@@ -722,6 +793,7 @@
           part: section.title,
           title: s.title,
           items,
+          total: s.criteria.length,
           v: mean(items.map((x) => x.v)),
         });
       }),
@@ -742,43 +814,37 @@
       );
       return;
     }
-    const ex = extremes(rated.map((s) => ({ v: s.v, n: s.title })));
-    const rows = [];
+    const ex = extremes(rated.map((s, i) => ({ v: s.v, n: i })));
+    const hiIdx = ex && !ex.same ? ex.hi.n : -1;
+    const loIdx = ex && !ex.same ? ex.lo.n : -1;
+    const badge = (i) =>
+      i === hiIdx
+        ? `<span class="db-badge db-badge--hi"><i class="ti ti-trophy" aria-hidden="true"></i>Highest competency</span>`
+        : i === loIdx
+          ? `<span class="db-badge db-badge--lo"><i class="ti ti-trending-down" aria-hidden="true"></i>Lowest competency</span>`
+          : "";
     let lastPart = "";
-    rated.forEach((s) => {
-      if (s.part !== lastPart) {
-        rows.push(
-          `<p class="db-grp">${s.part === "Part II-A" ? "Part II-A, Leadership" : "Part II-B, Core Behavioural"}</p>`,
-        );
-        lastPart = s.part;
-      }
-      rows.push(barRow(s.title, s.v, 5, "var(--c)", "", f1(s.v)));
-    });
-    const details = rated
-      .map((s) => {
-        const e = extremes(s.items);
-        const line = (lab, x) =>
-          `<b>${lab}</b> Indicator ${x.n} (${x.v}): ${esc(clip(x.t, 120))}`;
-        return `<div class="db-det__item"><h4>${esc(s.title)}</h4><p>${e.same ? `All rated indicators at ${e.hi.v}` : line("Highest", e.hi) + "<br>" + line("Lowest", e.lo)}</p></div>`;
+    const rows = rated
+      .map((s, i) => {
+        let divider = "";
+        if (s.part !== lastPart) {
+          lastPart = s.part;
+          const inPart = rated.filter((x) => x.part === s.part);
+          divider = `<div class="db-cgrp"><span>${esc(E2_PARTS[s.part] || s.part)}</span><span>${inPart.length} competenc${inPart.length === 1 ? "y" : "ies"} · average <b>${f2(mean(inPart.map((x) => x.v)))}</b></span></div>`;
+        }
+        const b = bandOf(s.v).b;
+        return `${divider}
+        <article class="db-kra${i === hiIdx ? " db-kra--hi" : i === loIdx ? " db-kra--lo" : ""}" aria-label="${esc(s.title)}">
+          <span class="db-rank" title="Competency ${i + 1} of ${rated.length}">${i + 1}</span>
+          <div class="db-kra__id"><h4>${esc(s.title)}</h4>${badge(i)}</div>
+          ${e2IndicatorBlock(s)}
+          ${e2Dots(s)}
+          <div class="db-chip" data-b="${b}" title="Average of the rated indicators"><b>${f2(s.v)}</b><span>${E2_LABELS[b]}</span></div>
+        </article>`;
       })
       .join("");
-    body.innerHTML = `
-      <div class="db-grid">
-        <div class="db-col"><h3>Average rating per competency</h3>${rows.join("")}</div>
-        <div class="db-col"><h3>Highest and lowest competency</h3>
-          ${
-            ex.same
-              ? kv([["Only rated", ex.hi.n, f1(ex.hi.v)]])
-              : kv([
-                  ["Highest", ex.hi.n, f1(ex.hi.v)],
-                  ["Lowest", ex.lo.n, f1(ex.lo.v)],
-                ])
-          }</div>
-        <div class="db-col"><h3>Indicator range per competency</h3>
-          ${rated.map((s) => rangeRow(s.title, Math.min(...s.items.map((x) => x.v)), Math.max(...s.items.map((x) => x.v)), 1, 5)).join("")}
-          <p class="db-note">Lowest to highest indicator, scale 1 to 5.</p></div>
-      </div>
-      <details class="db-det"><summary>Highest and lowest indicator per competency</summary><div class="db-det__list">${details}</div></details>`;
+    body.innerHTML = `<div class="db-kras db-kras--e2">
+      <div class="db-kras__head" aria-hidden="true"><span>#</span><span>Competency</span><span>Highest and lowest indicator</span><span>Indicators per rating (1 to 5)</span><span>Average</span></div>${rows}</div>`;
   }
 
   /* ── SBM ─────────────────────────────────────────────────────────────── */
@@ -945,6 +1011,60 @@
           ])}</div>
       </div>`;
   }
+
+  /* Dot plot popup: click a dot (or press Enter/Space on a focused one) to show
+     "Indicator n" and its text; click it again, click elsewhere or press Esc to close. */
+  (function () {
+    const tip = document.createElement("div");
+    tip.className = "db-tip";
+    tip.setAttribute("role", "status");
+    tip.hidden = true;
+    root.appendChild(tip);
+    let on = null;
+    const hide = () => {
+      tip.hidden = true;
+      if (on) on.classList.remove("is-on");
+      on = null;
+    };
+    const show = (dot) => {
+      if (on === dot) return hide();
+      hide();
+      on = dot;
+      dot.classList.add("is-on");
+      const head = document.createElement("b");
+      head.textContent = "Indicator " + dot.dataset.n;
+      const text = document.createElement("span");
+      text.textContent = dot.dataset.t || "";
+      tip.replaceChildren(head, text);
+      tip.hidden = false;
+      /* centre over the dot, but keep the label inside the window; the arrow
+         keeps pointing at the dot */
+      const r = dot.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const w = tip.offsetWidth;
+      const left = Math.min(
+        Math.max(cx, 8 + w / 2),
+        Math.max(window.innerWidth - 8 - w / 2, 8 + w / 2),
+      );
+      tip.style.left = left + "px";
+      tip.style.top = r.top - 9 + "px";
+      tip.style.setProperty("--ax", cx - left + w / 2 + "px");
+    };
+    const isDot = (el) => el.closest && el.closest(".db-dots circle[data-n]");
+    root.addEventListener("click", (e) => {
+      const d = isDot(e.target);
+      d ? show(d) : hide();
+    });
+    root.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") hide();
+      else if ((e.key === "Enter" || e.key === " ") && isDot(e.target)) {
+        e.preventDefault();
+        show(isDot(e.target));
+      }
+    });
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+  })();
 
   /* ── boot ────────────────────────────────────────────────────────────── */
   const sec = (id) => document.getElementById(id);
