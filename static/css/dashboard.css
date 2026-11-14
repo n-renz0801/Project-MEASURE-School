@@ -2035,28 +2035,33 @@
 }
 
 /* ── AIP body: one donut per card, figures beside it ────────────────────────
-   Programs/projects (gain vs gap) and budget (utilized of allotted). Only
-   the AIP violet family: --c, --c-soft, --c-soft2, --c-deep. The centre of
-   each donut carries the total / utilization, so the rows never repeat it. */
+   Programs/projects and budget share ONE structure (see aipCard in
+   dashboard.js): a donut with two rounded arcs and the total in its centre,
+   then a heading and two figure tiles, each with its share as a chip. First
+   arc = --c, second arc = --c-soft2 (a selected soft arc takes --on, so it
+   stays distinct from the dimmed arcs). Corners are only slightly rounded:
+   cards 12px, tiles 9px, chips 8px, swatches 3px. */
 .db-aip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 .db-aip-card {
+  container-type: inline-size;
   display: flex;
   align-items: stretch;
-  gap: 1.6rem;
-  padding: 1.1rem 1.35rem 1.35rem;
-  border: 1px solid color-mix(in srgb, var(--c) 18%, var(--border));
-  border-radius: 14px;
-  background: var(--white);
-}
-.db-aip-card--hl {
-  background: linear-gradient(135deg, var(--c-soft), var(--white) 75%);
+  gap: 1.5rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--c) 16%, var(--border));
+  border-radius: 12px;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--c) 6%, var(--white)),
+    var(--white) 65%
+  );
 }
 .db-aip-chart {
-  flex: 0 0 46%;
+  flex: 0 0 44%;
   align-self: center;
 }
 .db-aip-chart svg {
@@ -2067,14 +2072,24 @@
 .db-aip-chart text {
   font-family: inherit;
 }
+.db-aip-arc,
+.db-aip-track {
+  stroke: var(--seg, color-mix(in srgb, var(--c) 10%, var(--white)));
+}
 .db-aip-big {
   font-size: 26px;
   font-weight: 600;
   fill: var(--c);
 }
 .db-aip-sm {
-  font-size: 8.5px;
+  font-size: 7.5px;
   fill: var(--text-light);
+}
+.db-aip-big.is-sm {
+  font-size: 18px;
+}
+.db-aip-big.is-xs {
+  font-size: 14px;
 }
 .db-aip-seg {
   outline: none;
@@ -2086,14 +2101,20 @@
 .db-aip-seg:focus-visible {
   stroke-width: 23;
 }
+.db-aip-seg.on {
+  stroke: var(--on, var(--seg));
+}
 .db-aip-seg:focus-visible {
   stroke: var(--c-deep) !important;
 }
 .db-aip-chart svg.is-dim .db-aip-seg:not(.on) {
-  opacity: 0.3;
+  opacity: 0.16;
 }
-.db-aip-big.is-sm {
-  font-size: 19px;
+.db-aip-track:not(.db-aip-seg) {
+  transition: opacity 0.18s ease;
+}
+.db-aip-chart svg.is-dim .db-aip-track:not(.db-aip-seg) {
+  opacity: 0.35; /* the pale unclassified part fades too */
 }
 .db-aip-arc {
   animation: db-aip-draw 1s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
@@ -2107,11 +2128,13 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  gap: 0.6rem;
   min-width: 0;
+  justify-content: center;
 }
 .db-aip-rows h3 {
-  margin: 0 0 0.9rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.1rem;
+  font-size: 0.72rem; /* same as .db-sbm-card h3 ("Overall degree of manifestation") */
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -2119,46 +2142,39 @@
 }
 .db-aip-row {
   display: flex;
-  flex: 1;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
-  margin: 0 -0.6rem;
-  padding: 0.4rem 0.6rem;
-  border-top: 1px solid color-mix(in srgb, var(--c) 14%, var(--border));
-  border-radius: 10px;
+  padding: 0.75rem 0.95rem;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--c) 6%, var(--white));
   transition: background 0.15s ease;
 }
 .db-aip-row.on {
-  background: color-mix(in srgb, var(--c) 9%, transparent);
+  background: color-mix(in srgb, var(--c) 14%, var(--white));
 }
 .db-aip-row:focus-visible {
   outline: 2px solid var(--c);
-  outline-offset: -2px;
-}
-.db-aip-rows h3 + .db-aip-row {
-  border-top: 0;
+  outline-offset: 2px;
 }
 .db-aip-row > div {
   min-width: 0;
 }
 .db-aip-n {
   display: block;
-  font-size: 1.65rem;
+  font-size: clamp(1.15rem, 6.2cqi, 1.65rem);
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: -0.01em;
   color: var(--c);
   font-variant-numeric: tabular-nums;
-}
-.db-aip-n--deep {
-  color: var(--c-deep);
+  overflow-wrap: anywhere;
 }
 .db-aip-l {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-top: 3px;
+  margin-top: 4px;
   font-size: 0.78rem;
   color: var(--text-light);
 }
@@ -2169,9 +2185,11 @@
   border-radius: 3px;
 }
 .db-aip-chip {
-  padding: 3px 12px;
-  border-radius: 999px;
-  background: var(--c-soft);
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--c) 22%, transparent);
   color: var(--c);
   font-size: 0.85rem;
   font-weight: 600;
@@ -2190,9 +2208,6 @@
     flex: none;
     width: 200px;
     align-self: center;
-  }
-  .db-aip-row {
-    padding-block: 0.7rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

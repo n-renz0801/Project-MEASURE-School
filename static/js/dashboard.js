@@ -1310,34 +1310,47 @@
     }).format(n);
   const pct = (part, whole) =>
     whole > 0 ? Math.round((part / whole) * 100) : 0;
-  /* Donut ring: a pale track, then one arc per segment (a small gap between
-     arcs only when there is more than one). The track and each arc may carry
-     a data-seg index for the hover link with its row. */
+  /* Donut ring: a pale track, then one arc per segment (a no gap between
+     arcs). The track may itself be a segment
+     (o.track.seg) -- the budget's full ring is "total allotted". Each arc
+     carries a data-seg index for the hover link with its row, its resting
+     colour (--seg) and, optionally, the colour it takes while selected (--on),
+     so a selected pale arc is never mistaken for a dimmed one. */
+  const aipBigCls = (t) =>
+    t.length > 6 ? " is-xs" : t.length > 5 ? " is-sm" : "";
   function aipRing(o) {
     const R = 50,
       C = 2 * Math.PI * R;
-    const total = o.segs.reduce((t, x) => t + x.of, 0) || 1;
+    const total = Math.max(...o.segs.map((x) => x.of), 0) || 1;
     const live = o.segs.filter((x) => x.v > 0);
     let off = 0;
     const arcs = live
       .map((x) => {
-        const len = (x.v / total) * C;
-        const dash = live.length > 1 ? Math.max(len - 2, 0.5) : len;
-        const el = `<circle class="db-aip-arc db-aip-seg" data-seg="${x.seg}" tabindex="0" role="img" aria-label="${esc(x.aria)}" cx="64" cy="64" r="${R}" fill="none" stroke-width="18" style="stroke:${x.color}" stroke-dasharray="${dash} ${C - dash}" stroke-dashoffset="${-off}" transform="rotate(-90 64 64)"/>`;
+        const len = Math.min(x.v / total, 1) * C;
+        const dash = len;
+        const start = off;
         off += len;
-        return el;
+        return `<circle class="db-aip-arc db-aip-seg" data-seg="${x.seg}" tabindex="0" role="img" aria-label="${esc(x.aria)}" cx="64" cy="64" r="${R}" fill="none" stroke-width="18" style="--seg:${x.color};--on:${x.on || x.color}" stroke-dasharray="${dash} ${Math.max(C - dash, 0)}" stroke-dashoffset="${-start}" transform="rotate(-90 64 64)"/>`;
       })
       .join("");
     const t = o.track;
-    const trackEl = `<circle class="db-aip-track${t.seg != null ? " db-aip-seg" : ""}"${t.seg != null ? ` data-seg="${t.seg}" tabindex="0" role="img" aria-label="${esc(t.aria)}"` : ""} cx="64" cy="64" r="${R}" fill="none" stroke-width="18" style="stroke:${t.color}"/>`;
+    const trackEl = `<circle class="db-aip-track${t.seg != null ? " db-aip-seg" : ""}"${t.seg != null ? ` data-seg="${t.seg}" tabindex="0" role="img" aria-label="${esc(t.aria)}" style="--seg:${t.color};--on:${t.on || t.color}"` : ""} cx="64" cy="64" r="${R}" fill="none" stroke-width="18"/>`;
     return `<svg viewBox="0 0 128 128" role="group" aria-label="${esc(o.label)}">${trackEl}${arcs}
-      <text x="64" y="68" text-anchor="middle" class="db-aip-big">${esc(o.big)}</text>
+      <text x="64" y="68" text-anchor="middle" class="db-aip-big${aipBigCls(o.big)}">${esc(o.big)}</text>
       <text x="64" y="82" text-anchor="middle" class="db-aip-sm">${esc(o.small)}</text></svg>`;
   }
-  const aipRow = (seg, n, label, swatch, chip, deep) =>
-    `<div class="db-aip-row" data-seg="${seg}" tabindex="0"><div><span class="db-aip-n${deep ? " db-aip-n--deep" : ""}">${n}</span>
+  /* One row = figure + label with its colour dot, and the share as a chip. */
+  const aipRow = (seg, n, label, swatch, chip) =>
+    `<div class="db-aip-row" data-seg="${seg}" tabindex="0"><div><span class="db-aip-n">${n}</span>
       <span class="db-aip-l"><i style="background:${swatch}"></i>${esc(label)}</span></div>
-      ${chip == null ? "" : `<span class="db-aip-chip">${chip}%</span>`}</div>`;
+      <span class="db-aip-chip">${chip}%</span></div>`;
+  /* Both AIP cards come from this one template, so they cannot drift apart:
+     donut (two arcs, total in the centre) | heading + two rows. */
+  const aipCard = (id, ring, heading, rows) =>
+    `<div class="db-aip-card" id="${id}">
+      <div class="db-aip-chart">${aipRing(ring)}</div>
+      <div class="db-aip-rows"><h3>${heading}</h3>${rows}</div>
+    </div>`;
   /* hover / focus link between an arc and its row; the centre text follows.
      centers[seg] = [big, small]; def = the resting centre text. */
   function aipHover(card, def, centers) {
@@ -1352,7 +1365,7 @@
       const c = i == null ? def : centers[i];
       big.textContent = c[0];
       sm.textContent = c[1];
-      big.classList.toggle("is-sm", c[0].length > 5);
+      big.setAttribute("class", "db-aip-big" + aipBigCls(c[0]));
     };
     card.querySelectorAll("[data-seg]").forEach((el) => {
       const i = +el.dataset.seg;
@@ -1387,24 +1400,32 @@
       utilized = sum("accomplishmentFinance");
     const up = pct(utilized, allotted);
     setVal(val, up + "%", "of budget utilized");
+    const upPct = pct(utilized, allotted);
     const cnt = (n) => `<data data-to="${n}">${n}</data>`;
+    /* first = the main colour, second = the soft one, in both cards. When the
+       soft arc of the programs card is selected it turns a clear mid violet. */
+    const C1 = "var(--c)",
+      C2 = "var(--c-soft2)",
+      C2_ON = "color-mix(in srgb, var(--c) 58%, var(--white))";
     body.innerHTML = `
       <div class="db-aip">
-        <div class="db-aip-card db-aip-card--hl" id="aip-card-prog">
-          <div class="db-aip-chart">${aipRing({
+        ${aipCard(
+          "aip-card-prog",
+          {
             track: { color: "var(--c-soft)" },
             segs: [
               {
                 v: gain,
                 of: total,
-                color: "var(--c)",
+                color: C1,
                 seg: 0,
                 aria: `${gain} with gain`,
               },
               {
                 v: gap,
                 of: total,
-                color: "var(--c-soft2)",
+                color: C2,
+                on: C2_ON,
                 seg: 1,
                 aria: `${gap} with gap`,
               },
@@ -1412,37 +1433,42 @@
             big: String(total),
             small: "programs/projects",
             label: `${gain} of ${total} programs and projects with gain, ${gap} with gap`,
-          })}</div>
-          <div class="db-aip-rows"><h3>Programs and projects</h3>
-            ${aipRow(0, cnt(gain), "With gain", "var(--c)", pct(gain, total))}
-            ${aipRow(1, cnt(gap), "With gap", "var(--c-soft2)", pct(gap, total))}
-          </div>
-        </div>
-        <div class="db-aip-card" id="aip-card-budget">
-          <div class="db-aip-chart">${aipRing({
+          },
+          "Programs and projects",
+          aipRow(0, cnt(gain), "With gain", C1, pct(gain, total)) +
+            aipRow(1, cnt(gap), "With gap", C2, pct(gap, total)),
+        )}
+        ${aipCard(
+          "aip-card-budget",
+          {
             track: {
-              color: "var(--c-soft2)",
-              seg: 0,
-              aria: `${pesoFull(allotted)} allotted`,
+              color: C2,
+              seg: 1,
+              aria: `${pesoFull(allotted)} total allotted`,
             },
             segs: [
               {
-                v: utilized,
+                v: Math.min(utilized, allotted),
                 of: allotted,
-                color: "var(--c)",
-                seg: 1,
+                color: C1,
+                seg: 0,
                 aria: `${pesoFull(utilized)} utilized`,
               },
             ],
-            big: up + "%",
-            small: "utilized",
-            label: `${up}% of the allotted budget utilized`,
-          })}</div>
-          <div class="db-aip-rows"><h3>Budget</h3>
-            ${aipRow(0, pesoFull(allotted), "Total allotted", "var(--c-soft2)", null, true)}
-            ${aipRow(1, pesoFull(utilized), "Total utilized", "var(--c)", null)}
-          </div>
-        </div>
+            big: pesoK(allotted),
+            small: "allotted",
+            label: `${pesoFull(allotted)} allotted, ${upPct}% utilized`,
+          },
+          "Budget",
+          aipRow(0, pesoFull(utilized), "Utilized", C1, upPct) +
+            aipRow(
+              1,
+              pesoFull(allotted),
+              "Total allotted",
+              C2,
+              allotted > 0 ? 100 : 0,
+            ),
+        )}
       </div>`;
     aipHover(
       body.querySelector("#aip-card-prog"),
@@ -1454,10 +1480,10 @@
     );
     aipHover(
       body.querySelector("#aip-card-budget"),
-      [up + "%", "utilized"],
+      [pesoK(allotted), "allotted"],
       [
-        [pesoK(allotted), "allotted"],
-        [pesoK(utilized), "utilized"],
+        [pesoK(utilized), `utilized · ${upPct}%`],
+        [pesoK(allotted), "total allotted"],
       ],
     );
     countUp(sec);
