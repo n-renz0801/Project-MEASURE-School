@@ -682,7 +682,7 @@
       candidates,
     );
 
-    const title = `Choose one ${tone === "strength" ? "strength" : "improvement need"}`;
+    const title = tone === "strength" ? "Strength" : "Improvement need";
     const n = candidates.length;
     const noun = isObj
       ? n > 1
@@ -696,8 +696,11 @@
         ? ""
         : `From your ${n > 1 ? n + " " : ""}${direction === "highest" ? "highest" : "lowest"}-rated ${noun}`;
     const head = `<div class="eopcrf4-pick-h">
-        <div class="eopcrf4-pick-title" id="eopcrf4-fld-${field}-label">${title}</div>
-        ${sub ? `<div class="eopcrf4-pick-sub">${sub}</div>` : ""}
+        <div class="eopcrf4-pick-text">
+          <div class="eopcrf4-pick-title" id="eopcrf4-fld-${field}-label">${title}</div>
+          ${sub ? `<div class="eopcrf4-pick-sub">${sub}</div>` : ""}
+        </div>
+        <span class="eopcrf4-chip ${currentRef ? "is-ok" : "is-warn"}" data-chip="${field}">${currentRef ? "Chosen" : "Choose one"}</span>
       </div>`;
     const cls = `eopcrf4-pick eopcrf4-pick--${isObj ? "obj" : "cmp"} eopcrf4-pick-${tone}`;
 
@@ -781,7 +784,7 @@
       column.field === "timeline" || column.field === "resources" ? 3 : 4;
     return `
       <label class="${cls}">
-        <span class="eopcrf4-fl">${label}${note}</span>
+        <span class="eopcrf4-fl">${label}${note}<i class="eopcrf4-mark" data-mark="${column.field}" role="img" aria-label="Empty"></i></span>
         <textarea rows="${rows}" data-field="${column.field}" style="min-height:calc(${rows} * 1.45em + 18px)">${escapeHtml(row[column.field] || "")}</textarea>
       </label>`;
   }
@@ -790,19 +793,22 @@
     return `
       <div class="eopcrf4-ed-body">
         ${GROUPS[part]
-          .map((g) => {
-            const cells = g.fields
-              .map((f) =>
-                fieldHtml(
-                  PARTS[part].columns.find((c) => c.field === f),
-                  row,
-                  g.wide.includes(f),
-                ),
-              )
+          .map((g, i) => {
+            const cols = g.fields.map((f) =>
+              PARTS[part].columns.find((c) => c.field === f),
+            );
+            const picks = cols.every((c) => c.type === "ref");
+            const cells = cols
+              .map((c) => fieldHtml(c, row, g.wide.includes(c.field)))
               .join("");
+            const id = `eopcrf4-card-${part}-${i}`;
             return `
-          <section class="eopcrf4-stage" aria-label="${g.title}">
-            <div class="eopcrf4-stage-grid">${cells}</div>
+          <section class="eopcrf4-card" aria-labelledby="${id}" data-card="${g.fields.join(",")}" data-noun="${picks ? "chosen" : "filled"}">
+            <div class="eopcrf4-card-head">
+              <h4 id="${id}">${g.title}</h4>
+              <span class="eopcrf4-chip eopcrf4-card-count"></span>
+            </div>
+            <div class="eopcrf4-stage-grid eopcrf4-card-body${picks ? " eopcrf4-card-body--picks" : ""}">${cells}</div>
           </section>`;
           })
           .join("")}
@@ -812,10 +818,11 @@
   function feedbackBodyHtml(part) {
     return `
       <div class="eopcrf4-ed-body">
-        <section class="eopcrf4-stage" aria-label="Feedback">
-          <div class="eopcrf4-stage-grid">
+        <section class="eopcrf4-card" aria-labelledby="eopcrf4-card-fb">
+          <div class="eopcrf4-card-head"><h4 id="eopcrf4-card-fb">Feedback</h4></div>
+          <div class="eopcrf4-stage-grid eopcrf4-card-body">
             <label class="eopcrf4-fld eopcrf4-span-2 eopcrf4-feedback-field">
-              <span class="eopcrf4-fl">Feedback</span>
+              <span class="eopcrf4-sr">Feedback</span>
               <textarea rows="6" data-feedback="${part}" style="min-height:calc(6 * 1.45em + 18px)">${escapeHtml(state.fbDraft[part] || "")}</textarea>
             </label>
           </div>
@@ -877,6 +884,35 @@
     editorEl.querySelectorAll("textarea").forEach(autosize),
   );
 
+  // Filled markers on labels, Chosen chips on the pickers and the "x of y"
+  // count on each card. Read from the live fields, so they follow typing.
+  function fieldFilled(field) {
+    const ta = editorEl.querySelector(`textarea[data-field="${field}"]`);
+    if (ta) return ta.value.trim().length > 0;
+    return !!(state.edit && state.edit.refs[field]);
+  }
+  function refreshMarks() {
+    if (!state.edit) return;
+    editorEl.querySelectorAll("[data-mark]").forEach((m) => {
+      const on = fieldFilled(m.dataset.mark);
+      m.classList.toggle("is-done", on);
+      m.setAttribute("aria-label", on ? "Filled" : "Empty");
+    });
+    editorEl.querySelectorAll("[data-chip]").forEach((c) => {
+      const on = fieldFilled(c.dataset.chip);
+      c.className = `eopcrf4-chip ${on ? "is-ok" : "is-warn"}`;
+      c.textContent = on ? "Chosen" : "Choose one";
+    });
+    editorEl.querySelectorAll("[data-card]").forEach((card) => {
+      const fields = card.dataset.card.split(",");
+      const n = fields.filter(fieldFilled).length;
+      const chip = card.querySelector(".eopcrf4-card-count");
+      if (!chip) return;
+      chip.className = `eopcrf4-chip eopcrf4-card-count ${n === fields.length ? "is-ok" : "is-warn"}`;
+      chip.textContent = `${n} of ${fields.length} ${card.dataset.noun}`;
+    });
+  }
+
   function renderEditor() {
     const s = state.sel;
     if (!s) {
@@ -900,6 +936,7 @@
     }
     saveDirty = false;
     editorEl.querySelectorAll("textarea").forEach(autosize);
+    refreshMarks();
   }
 
   async function select(next) {
@@ -1021,6 +1058,7 @@
         editorEl.innerHTML = `${headHtml()}${rowBodyHtml(part, { part, position })}`;
         state.edit.refs = refs;
         editorEl.querySelectorAll("textarea").forEach(autosize);
+        refreshMarks();
         saveDirty = true;
         flushSave();
       }
@@ -1040,6 +1078,7 @@
       (c) => c.field === field,
     );
     picker.outerHTML = renderRefPicker(column, next, state.edit.position);
+    refreshMarks();
     saveDirty = true;
     flushSave();
     const again = editorEl.querySelector(
@@ -1059,6 +1098,7 @@
       clearTimeout(feedbackTimers[part]);
       feedbackTimers[part] = setTimeout(() => saveFeedback(part), 1000);
     } else if (ta.dataset.field) {
+      refreshMarks();
       scheduleSave();
     }
   });
