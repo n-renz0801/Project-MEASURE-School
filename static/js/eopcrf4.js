@@ -399,17 +399,39 @@
   state.confirmClear = false;
   state.fbDraft = { A: "", B: "" }; // live text of the Feedback boxes
 
+  // A saved pick only counts while it is still among the current top N.
+  // "none" = nothing picked, "ok" = valid pick, "stale" = it has dropped out
+  // of the top N (or is gone) and must be replaced.
+  function refState(position, column, id) {
+    if (!id) return "none";
+    const inTop = topN(poolFor(position), TOP_N, column.direction).some(
+      (c) => c.id === id,
+    );
+    return inTop ? "ok" : "stale";
+  }
+  function colFilled(position, column, row) {
+    const v = row[column.field];
+    return column.type === "ref"
+      ? refState(position, column, v) === "ok"
+      : String(v || "").trim().length > 0;
+  }
+  const REF_CHIP = {
+    none: { cls: "is-warn", text: "Choose one" },
+    ok: { cls: "is-ok", text: "Chosen" },
+    stale: { cls: "is-bad", text: "Re-select" },
+  };
+
   function rowStatus(part, position) {
     const row = state.rows[rowKey(part, position)] || {};
     const cols = PARTS[part].columns;
-    const filled = cols.filter((c) => String(row[c.field] || "").trim()).length;
+    const filled = cols.filter((c) => colFilled(position, c, row)).length;
     if (filled === 0) return "empty";
     return filled === cols.length ? "done" : "partial";
   }
 
   function rowFilled(part, position) {
     const row = state.rows[rowKey(part, position)] || {};
-    return PARTS[part].columns.filter((c) => String(row[c.field] || "").trim())
+    return PARTS[part].columns.filter((c) => colFilled(position, c, row))
       .length;
   }
 
@@ -581,7 +603,7 @@
       if (open) {
         html += '<div class="eopcrf4-nv-rail">';
         cols.forEach((c) => {
-          const has = !!String(row[c.field] || "").trim();
+          const has = colFilled(position, c, row);
           html += `
           <button type="button" class="eopcrf4-nv-obj" data-action="goto-field" data-field="${c.field}" title="${has ? "Filled" : "Not filled yet"}">
             <i class="eopcrf4-nv-dot${has ? " is-done" : ""}" aria-hidden="true"></i>
@@ -695,12 +717,13 @@
       n === 0
         ? ""
         : `From your ${n > 1 ? n + " " : ""}${direction === "highest" ? "highest" : "lowest"}-rated ${noun}`;
+    const refChip = REF_CHIP[extra ? "stale" : currentRef ? "ok" : "none"];
     const head = `<div class="eopcrf4-pick-h">
         <div class="eopcrf4-pick-text">
           <div class="eopcrf4-pick-title" id="eopcrf4-fld-${field}-label">${title}</div>
           ${sub ? `<div class="eopcrf4-pick-sub">${sub}</div>` : ""}
         </div>
-        <span class="eopcrf4-chip ${currentRef ? "is-ok" : "is-warn"}" data-chip="${field}">${currentRef ? "Chosen" : "Choose one"}</span>
+        <span class="eopcrf4-chip ${refChip.cls}" data-chip="${field}">${refChip.text}</span>
       </div>`;
     const cls = `eopcrf4-pick eopcrf4-pick--${isObj ? "obj" : "cmp"} eopcrf4-pick-${tone}`;
 
@@ -716,13 +739,13 @@
       .map((c) => {
         const selected = c.id === currentRef;
         const note = c.isExtra
-          ? `<span class="eopcrf4-opt-note">Outside your current ${TOP_N}</span>`
+          ? `<span class="eopcrf4-opt-note">${c.unavailable ? "No longer available." : `No longer in your top ${TOP_N}.`} Choose another.</span>`
           : "";
         const kra = c.kra
           ? `<span class="eopcrf4-opt-kra-name">${escapeHtml(c.kra)}</span>${c.group ? `<span class="eopcrf4-opt-kra-group">(${escapeHtml(c.group)})</span>` : ""}`
           : "";
         const score = c.average == null ? "–" : Number(c.average).toFixed(2);
-        return `<button type="button" role="radio" aria-checked="${selected}" class="eopcrf4-opt" data-value="${escapeHtml(c.id)}">
+        return `<button type="button" role="radio" aria-checked="${selected}" class="eopcrf4-opt${c.isExtra ? " is-stale" : ""}" data-value="${escapeHtml(c.id)}">
           <span class="eopcrf4-radio" aria-hidden="true"></span>
           ${isObj ? `<span class="eopcrf4-no">${escapeHtml(c.num || "–")}</span>` : ""}
           <span class="eopcrf4-opt-main">${escapeHtml(c.main)}${note}</span>
@@ -889,7 +912,14 @@
   function fieldFilled(field) {
     const ta = editorEl.querySelector(`textarea[data-field="${field}"]`);
     if (ta) return ta.value.trim().length > 0;
-    return !!(state.edit && state.edit.refs[field]);
+    if (!state.edit) return false;
+    return refStateOf(field) === "ok";
+  }
+  function refStateOf(field) {
+    const column = PARTS[state.edit.part].columns.find(
+      (c) => c.field === field,
+    );
+    return refState(state.edit.position, column, state.edit.refs[field]);
   }
   function refreshMarks() {
     if (!state.edit) return;
@@ -899,9 +929,9 @@
       m.setAttribute("aria-label", on ? "Filled" : "Empty");
     });
     editorEl.querySelectorAll("[data-chip]").forEach((c) => {
-      const on = fieldFilled(c.dataset.chip);
-      c.className = `eopcrf4-chip ${on ? "is-ok" : "is-warn"}`;
-      c.textContent = on ? "Chosen" : "Choose one";
+      const chip = REF_CHIP[refStateOf(c.dataset.chip)];
+      c.className = `eopcrf4-chip ${chip.cls}`;
+      c.textContent = chip.text;
     });
     editorEl.querySelectorAll("[data-card]").forEach((card) => {
       const fields = card.dataset.card.split(",");
@@ -1184,9 +1214,9 @@
     ],
   };
 
-  function printRefCell(row, column) {
+  function printRefCell(row, column, position) {
     const ref = row[column.field];
-    if (!ref) return "<td></td>";
+    if (refState(position, column, ref) !== "ok") return "<td></td>";
     const match = state.items.find((c) => c.id === ref);
     if (!match) return "<td></td>";
     const meta = `${match.source ? match.source + " · " : ""}${match.average.toFixed(2)}`;
@@ -1202,7 +1232,7 @@
         const cells = def.columns
           .map((col) =>
             col.type === "ref"
-              ? printRefCell(row, col)
+              ? printRefCell(row, col, position)
               : `<td>${pText(row[col.field])}</td>`,
           )
           .join("");
