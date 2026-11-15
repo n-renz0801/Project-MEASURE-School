@@ -364,6 +364,7 @@
         : "No entries yet";
     }
     renderProgress();
+    refreshMarks();
   }
 
   // ================= editor (right) =================
@@ -375,7 +376,7 @@
   function fieldHtml(p, key) {
     return `
       <label class="aip-fld">
-        <span class="aip-fl">${FIELDS[key].label}</span>
+        <span class="aip-fl">${FIELDS[key].label}<i class="aip-mark" data-mark="${key}" role="img" aria-label="Empty"></i></span>
         ${areaHtml(p, key)}
       </label>`;
   }
@@ -390,6 +391,7 @@
         <div class="aip-fl aip-fl--gg">
           <span>${FIELDS.gainGap.label}</span>
           <span class="aip-gg" role="radiogroup" aria-label="Result: gain or gap">${opt("gain", "ti-trending-up", "Gain")}${opt("gap", "ti-trending-down", "Gap")}</span>
+          <i class="aip-mark" data-mark="gainGap" role="img" aria-label="Empty"></i>
         </div>
         ${areaHtml(p, "gainGap", "Gain/Gap explanation")}
       </div>`;
@@ -454,37 +456,36 @@
     if (p && box) box.innerHTML = utilizationHtml(p);
   }
 
-  function stageHead(n, name, note) {
-    return `<div class="aip-stage-h"><span class="aip-stage-n" aria-hidden="true">${n}</span><h4>${name}</h4><span class="aip-stage-note">${note}</span></div>`;
-  }
-
   function rowLabel(name, note) {
     return `<div class="aip-cmp-label"><strong>${name}</strong><span>${note}</span></div>`;
   }
 
-  // Three groups: Program details, Plan vs actual and Analysis and next steps.
-  // In Plan vs actual the Target and Accomplishment columns sit side by side,
-  // so each row (Physical, Finance, Utilization) compares them directly, like the
-  // printed report. Side-by-side text boxes share one height (see autosize).
-  function bodyHtml(p) {
+  // Four cards (same look as OPCRF I): Program details, Plan vs actual,
+  // Analysis and next steps, and the MOV link. Each header carries a live
+  // "x of y filled" chip (see refreshMarks). In Plan vs actual the Target and
+  // Accomplishment columns sit side by side, so each row (Physical, Finance,
+  // Utilization) compares them directly, like the printed report. Side-by-side
+  // text boxes share one height (see autosize).
+  function cardHtml(id, title, note, keys, bodyCls, inner) {
     return `
-      <div class="aip-ed-body">
-        <section class="aip-stage">
-          ${stageHead(1, "Program details", "What it is and where the money comes from")}
-          <div class="aip-basics aip-duo">
-            ${fieldHtml(p, "title")}
-            ${fieldHtml(p, "sourceOfFund")}
+        <section class="aip-card" aria-labelledby="aip-card-${id}" data-card="${keys.join(",")}">
+          <div class="aip-card-head">
+            <h4 id="aip-card-${id}">${title}</h4>
+            <span class="aip-card-note">${note}</span>
+            <span class="aip-chip aip-card-count"></span>
           </div>
-        </section>
+          <div class="aip-card-body ${bodyCls}">${inner}</div>
+        </section>`;
+  }
 
-        <section class="aip-stage">
-          ${stageHead(2, "Plan vs actual", "Each row compares the target with what was accomplished")}
+  function bodyHtml(p) {
+    const plan = `
           ${fieldHtml(p, "objective")}
           <div class="aip-cmp" role="group" aria-label="Target compared with accomplishment">
             <div class="aip-cmp-row aip-cmp-head">
               <div class="aip-cmp-corner"></div>
-              <div class="aip-cmp-col aip-cmp-col--target"><strong>TARGET</strong><span>Planned</span></div>
-              <div class="aip-cmp-col aip-cmp-col--actual"><strong>ACCOMPLISHMENT</strong><span>Actually done</span></div>
+              <div class="aip-cmp-col aip-cmp-col--target"><strong>Target</strong><span>Planned</span></div>
+              <div class="aip-cmp-col aip-cmp-col--actual"><strong>Accomplishment</strong><span>Actually done</span></div>
             </div>
             <div class="aip-cmp-row aip-duo">
               ${rowLabel("Physical", "Quantities, activities")}
@@ -500,17 +501,47 @@
               ${rowLabel("Utilization", "Calculated")}
               <div class="aip-cmp-var" id="aip-var-body">${utilizationHtml(p)}</div>
             </div>
-          </div>
-        </section>
-
-        <section class="aip-stage">
-          ${stageHead(3, "Analysis and next steps", "What it means and what should follow")}
-          <div class="aip-stage-grid aip-duo">
-            ${gainGapHtml(p)}
-            ${fieldHtml(p, "recommendation")}
-          </div>
-        </section>
+          </div>`;
+    return `
+      <div class="aip-ed-body">
+        ${cardHtml("details", "Program details", "What it is and where the money comes from", ["title", "sourceOfFund"], "aip-basics aip-duo", fieldHtml(p, "title") + fieldHtml(p, "sourceOfFund"))}
+        ${cardHtml("plan", "Plan vs actual", "Each row compares the target with what was accomplished", ["objective", "target", "targetFinance", "accomplishment", "accomplishmentFinance"], "aip-card-body--plan", plan)}
+        ${cardHtml("analysis", "Analysis and next steps", "What it means and what should follow", ["gainGap", "gainGapType", "recommendation"], "aip-stage-grid aip-duo", gainGapHtml(p) + fieldHtml(p, "recommendation"))}
+        ${cardHtml("mov", "Means of verification", "The link that proves the work was done", ["movLink"], "aip-card-body--mov", movHtml(p))}
       </div>`;
+  }
+
+  // Filled markers on the labels and the "x of y filled" chip on each card.
+  // Reads the project in memory, so it follows typing. Called from
+  // renderList(), which already runs whenever something is filled or emptied.
+  function markFilled(p, key) {
+    if (key === "gainGap")
+      return isFilled(p, "gainGap") && isFilled(p, "gainGapType");
+    return isFilled(p, key);
+  }
+  function refreshMarks() {
+    const p = selected();
+    if (!p || !editorEl.querySelector(".aip-card")) return;
+    editorEl.querySelectorAll("[data-mark]").forEach((m) => {
+      const on = markFilled(p, m.dataset.mark);
+      m.classList.toggle("is-done", on);
+      m.setAttribute("aria-label", on ? "Filled" : "Empty");
+    });
+    editorEl.querySelectorAll("[data-card]").forEach((card) => {
+      const keys = card.dataset.card.split(",");
+      const chip = card.querySelector(".aip-card-count");
+      if (!chip) return;
+      const n = keys.filter((k) =>
+        k === "movLink" ? !!p.movLink : isFilled(p, k),
+      ).length;
+      chip.className = `aip-chip aip-card-count ${n === keys.length ? "is-ok" : "is-warn"}`;
+      chip.textContent =
+        keys[0] === "movLink"
+          ? n
+            ? "Attached"
+            : "Missing"
+          : `${n} of ${keys.length} filled`;
+    });
   }
 
   // Banner at the top of the editor: number badge, title (first line
@@ -569,9 +600,9 @@
     }
     editorEl.innerHTML = `
       ${headHtml(p)}
-      ${bodyHtml(p)}
-      ${movHtml(p)}`;
+      ${bodyHtml(p)}`;
     editorEl.querySelectorAll("textarea").forEach(autosize);
+    refreshMarks();
   }
 
   function renderMovOnly() {

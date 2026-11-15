@@ -25,6 +25,8 @@
   --ap-warn-line: #e6c88a;
   --ap-danger: #b42318;
   --ap-radius: 8px;
+  --ap-canvas: #f4f6fa;
+  --ap-band: #eceff3;
   color: var(--ap-ink);
   font-size: 14px;
   line-height: 1.5;
@@ -1014,43 +1016,91 @@ a.aip-mov-tile:hover {
 .aip-ed-body {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 22px 24px 26px;
-}
-.aip-stage {
-  display: flex;
-  flex-direction: column;
   gap: 14px;
+  padding: 16px 20px 22px;
+  background: var(--ap-canvas);
 }
-.aip-stage-h {
+/* One card per group: grey heading band with a navy rule, like OPCRF I. */
+.aip-card {
+  overflow: hidden;
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-line);
+  border-radius: 10px;
+}
+.aip-card-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--ap-line);
+  padding: 10px 16px;
+  background: var(--ap-band);
+  border-bottom: 2px solid var(--ap-accent);
 }
-.aip-stage-h h4 {
-  margin: 0;
+.aip-panel .aip-card-head h4 {
+  flex: none;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.3;
   color: var(--ap-accent);
 }
-.aip-stage-h .aip-stage-note {
+.aip-card-note {
+  flex: 1;
+  min-width: 0;
   font-size: 12.5px;
   color: var(--ap-muted);
 }
-/* Numbered badge in front of each group's heading. */
-.aip-stage-h .aip-stage-n {
+.aip-chip {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
+  padding: 2px 10px;
   font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--ap-accent);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+.aip-chip.is-ok {
+  color: var(--ap-ok);
+  background: #dcf1e5;
+}
+.aip-chip.is-warn {
+  color: var(--ap-warn);
+  background: #fff2d9;
+}
+.aip-card-count:empty {
+  display: none;
+}
+.aip-card-body {
+  padding: 16px;
+}
+.aip-card-body--plan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* Filled / empty marker at the end of each label */
+.aip-mark {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ap-line-strong);
   border-radius: 50%;
+}
+.aip-mark.is-done {
+  background: var(--ap-ok);
+  border-color: var(--ap-ok);
+}
+.aip-mark.is-done::after {
+  content: "";
+  position: absolute;
+  top: 1.5px;
+  left: 4px;
+  width: 3px;
+  height: 6px;
+  border: solid #fff;
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
 }
 /* Program details: title (wide) beside the source of fund. */
 .aip-basics {
@@ -1078,7 +1128,9 @@ a.aip-mov-tile:hover {
   min-width: 0;
 }
 .aip-fl {
-  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
   font-weight: 600;
 }
 .aip-fld textarea {
@@ -1136,9 +1188,8 @@ a.aip-mov-tile:hover {
   border-left: 1px solid var(--ap-line-strong);
 }
 .aip-cmp-col strong {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.08em;
 }
 .aip-cmp-col span {
   font-size: 12.5px;
@@ -1148,9 +1199,13 @@ a.aip-mov-tile:hover {
   color: var(--ap-accent);
   background: var(--ap-accent-soft);
 }
+.aip-cmp-col--actual {
+  color: #145c39;
+  background: #e6f4ec;
+}
 .aip-cmp-col--target span,
 .aip-cmp-col--actual span {
-  color: var(--ap-muted);
+  color: #3d4a5c;
 }
 .aip-cmp-label {
   display: flex;
@@ -1304,7 +1359,7 @@ a.aip-mov-tile:hover {
 .aip-var-bar span {
   display: block;
   height: 100%;
-  background: var(--ap-accent);
+  background: var(--ap-ok);
   transition: width 0.25s ease;
 }
 .aip-var-empty {
@@ -1316,15 +1371,9 @@ a.aip-mov-tile:hover {
 .aip-var-empty.is-warn {
   color: var(--ap-warn);
 }
-/* The MOV strip is the footer of the editor: it decides "complete". */
-.aip-editor .aip-mov {
-  padding: 12px 20px;
-  background: var(--ap-subtle);
-  border-top: 1px solid var(--ap-line);
-}
-.aip-editor .aip-mov.is-missing {
-  background: var(--ap-warn-bg);
-  border-top-color: var(--ap-warn-line);
+/* The MOV link has its own card; it decides "complete". */
+.aip-card-body--mov {
+  padding: 16px;
 }
 .aip-empty {
   display: grid;
@@ -1377,8 +1426,13 @@ a.aip-mov-tile:hover {
   min-height: 28px; /* keeps both text boxes level */
 }
 .aip-fl--gg {
-  justify-content: space-between;
   gap: 8px;
+}
+.aip-fl--gg .aip-gg {
+  margin-left: auto;
+}
+.aip-fl--gg .aip-mark {
+  margin-left: 10px;
 }
 .aip-gg {
   display: inline-flex;
@@ -1404,6 +1458,12 @@ a.aip-mov-tile:hover {
 .aip-gg-opt[aria-checked="true"] {
   background: var(--ap-accent);
   color: #fff;
+}
+.aip-gg-opt[data-gg="gain"][aria-checked="true"] {
+  background: var(--ap-ok);
+}
+.aip-gg-opt[data-gg="gap"][aria-checked="true"] {
+  background: var(--ap-warn);
 }
 .aip-gg-opt:focus-visible {
   outline: 2px solid var(--ap-accent);
