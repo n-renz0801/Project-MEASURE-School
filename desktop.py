@@ -13,7 +13,8 @@ import urllib.request
 import webview
 from werkzeug.serving import make_server
 
-from app import app, _ensure_eopcrf1_schema, _ensure_eopcrf2_schema
+from app import (app, _ensure_eopcrf1_schema, _ensure_eopcrf2_schema,
+                 _ensure_sbm_schema, _ensure_aip_schema)
 from models import db
 
 WINDOW_TITLE = "Project MEASURE"
@@ -57,6 +58,8 @@ def init_database():
         db.create_all()
         _ensure_eopcrf1_schema()
         _ensure_eopcrf2_schema()
+        _ensure_sbm_schema()
+        _ensure_aip_schema()
 
 
 def main():
